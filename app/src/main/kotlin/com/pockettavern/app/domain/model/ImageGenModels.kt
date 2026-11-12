@@ -38,6 +38,7 @@ data class ImageGenCapabilities(
     val supportsVae: Boolean = false,
     val supportsResolutionPresets: Boolean = true,
     val supportsProgress: Boolean = false,
+    val supportsCustomWorkflow: Boolean = false,
     val requiresApiKey: Boolean = false,
     val requiresUrl: Boolean = false,
     // Whether interrupt() actually stops in-flight generation, vs. only detaching the listener
@@ -76,7 +77,11 @@ data class ImageGenConfig(
     val negativePrompt: String = "blurry, low quality, distorted, deformed, bad anatomy",
     val clipSkip: Int = 1,
     val width: Int = 512,
-    val height: Int = 768
+    val height: Int = 768,
+    val workflowMode: String = "STANDARD",
+    val customWorkflowTemplate: String = "",
+    val customWorkflowName: String = "",
+    val customWorkflowBackend: String = ""
 ) {
     val activeBackendType: ImageGenBackendType
         get() = try {
