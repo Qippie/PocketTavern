@@ -50,6 +50,12 @@ data class ImageGenCapabilities(
 )
 
 @Serializable
+data class CustomImageWorkflowDefinition(
+    val name: String = "",
+    val template: String = ""
+)
+
+@Serializable
 data class ImageGenConfig(
     val activeBackend: String = "SD_WEBUI",
     val sdWebuiUrl: String = "",
@@ -78,10 +84,8 @@ data class ImageGenConfig(
     val clipSkip: Int = 1,
     val width: Int = 512,
     val height: Int = 768,
-    val workflowMode: String = "STANDARD",
-    val customWorkflowTemplate: String = "",
-    val customWorkflowName: String = "",
-    val customWorkflowBackend: String = ""
+    val workflowModes: Map<String, String> = emptyMap(),
+    val customWorkflows: Map<String, CustomImageWorkflowDefinition> = emptyMap()
 ) {
     val activeBackendType: ImageGenBackendType
         get() = try {
@@ -89,6 +93,18 @@ data class ImageGenConfig(
         } catch (_: Exception) {
             ImageGenBackendType.SD_WEBUI
         }
+
+    fun workflowModeFor(backend: ImageGenBackendType): String =
+        workflowModes[backend.name] ?: "STANDARD"
+
+    fun customWorkflowFor(backend: ImageGenBackendType): CustomImageWorkflowDefinition? =
+        customWorkflows[backend.name]
+
+    val activeWorkflowMode: String
+        get() = workflowModeFor(activeBackendType)
+
+    val activeCustomWorkflow: CustomImageWorkflowDefinition?
+        get() = customWorkflowFor(activeBackendType)
 
     /**
      * Whether the currently active backend has its required connection info filled in --
