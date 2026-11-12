@@ -498,6 +498,15 @@ fun ImageGenSettingsScreen(
                             )
                         }
 
+                        uiState.workflowImportError?.let { error ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = error,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
                         if (config.activeCustomWorkflow?.name.orEmpty().isNotBlank()) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
