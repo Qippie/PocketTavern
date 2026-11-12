@@ -2,6 +2,8 @@ package com.pockettavern.app.ui.screens.settings
 
 import com.pockettavern.app.R
 import androidx.compose.ui.res.stringResource
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +18,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -44,6 +47,24 @@ fun ImageGenSettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val config = uiState.config
     val caps = uiState.capabilities
+    val context = LocalContext.current
+
+    val workflowPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                val workflowText = context.contentResolver.openInputStream(uri)
+                    ?.bufferedReader()
+                    ?.use { it.readText() }
+                    .orEmpty()
+                if (workflowText.isNotBlank()) {
+                    val name = uri.lastPathSegment?.substringAfterLast('/') ?: "workflow.json"
+                    viewModel.updateCustomWorkflow(workflowText, name)
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -402,6 +423,102 @@ fun ImageGenSettingsScreen(
                                     else MaterialTheme.colorScheme.error
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // ── Workflow ────────────────────────────────────────────
+            item {
+                ImageGenSectionCard {
+                    Text(
+                        "Workflow",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    var workflowExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = workflowExpanded,
+                        onExpandedChange = { workflowExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = if (config.workflowMode == "CUSTOM") "Custom" else "Standard",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Workflow") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(workflowExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                            colors = imageGenTextFieldColors()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = workflowExpanded,
+                            onDismissRequest = { workflowExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Standard") },
+                                onClick = {
+                                    viewModel.updateWorkflowMode("STANDARD")
+                                    workflowExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Custom") },
+                                onClick = {
+                                    viewModel.updateWorkflowMode("CUSTOM")
+                                    workflowExpanded = false
+                                }
+                            )
+                        }
+                    }
+
+                    if (config.workflowMode == "CUSTOM") {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = {
+                                workflowPicker.launch(
+                                    arrayOf(
+                                        "application/json",
+                                        "text/plain",
+                                        "application/octet-stream"
+                                    )
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                if (config.customWorkflowName.isBlank())
+                                    "Import Workflow"
+                                else
+                                    "Replace Workflow"
+                            )
+                        }
+
+                        if (config.customWorkflowName.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Imported: ${config.customWorkflowName}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "Backend at import: ${config.customWorkflowBackend.ifBlank { "unspecified" }}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            TextButton(onClick = { viewModel.clearCustomWorkflow() }) {
+                                Text("Remove imported workflow")
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Import a workflow or request template for the selected image backend.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
