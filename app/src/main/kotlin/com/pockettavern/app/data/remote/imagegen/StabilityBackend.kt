@@ -66,6 +66,7 @@ class StabilityBackend(
         supportsSeed = true,
         supportsNegativePrompt = true,
         supportsResolutionPresets = true,
+        supportsCustomWorkflow = true,
         requiresApiKey = true
     )
 
@@ -118,15 +119,24 @@ class StabilityBackend(
                 prompts.add(StabilityPrompt(text = params.negativePrompt, weight = -1f))
             }
 
-            val body = json.encodeToString(StabilityRequest.serializer(), StabilityRequest(
-                textPrompts = prompts,
-                width = width.coerceIn(512, 1024),
-                height = height.coerceIn(512, 1024),
-                steps = params.steps,
-                cfgScale = params.cfgScale,
-                seed = if (params.seed == -1) 0 else params.seed.toLong(),
-                samples = 1
-            ))
+            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val body = if (customTemplate != null) {
+                CustomImageTemplate.renderJson(
+                    customTemplate,
+                    params,
+                    "stable-diffusion-xl-1024-v1-0"
+                )
+            } else {
+                json.encodeToString(StabilityRequest.serializer(), StabilityRequest(
+                    textPrompts = prompts,
+                    width = width.coerceIn(512, 1024),
+                    height = height.coerceIn(512, 1024),
+                    steps = params.steps,
+                    cfgScale = params.cfgScale,
+                    seed = if (params.seed == -1) 0 else params.seed.toLong(),
+                    samples = 1
+                ))
+            }
 
             val engineId = "stable-diffusion-xl-1024-v1-0"
             val request = Request.Builder()
