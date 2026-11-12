@@ -119,7 +119,7 @@ object NetworkModule {
         mnnDiffusionEngine: com.pockettavern.app.data.local.inference.MnnDiffusionEngine
     ): Map<ImageGenBackendType, @JvmSuppressWildcards ImageGenBackend> {
         return mapOf(
-            ImageGenBackendType.SD_WEBUI to SdWebuiBackend(apiProvider),
+            ImageGenBackendType.SD_WEBUI to SdWebuiBackend(apiProvider, forgeClient, settingsDataStore),
             ImageGenBackendType.COMFYUI to ComfyUiBackend(forgeClient, settingsDataStore),
             ImageGenBackendType.DALLE to DalleBackend(forgeClient, settingsDataStore),
             ImageGenBackendType.STABILITY to StabilityBackend(forgeClient, settingsDataStore),
