@@ -205,25 +205,30 @@ class ImageGenSettingsViewModel @Inject constructor(
     }
 
     fun updateWorkflowMode(mode: String) {
-        updateConfig { it.copy(workflowMode = mode) }
+        updateConfig { config ->
+            config.copy(
+                workflowModes = config.workflowModes + (config.activeBackend to mode)
+            )
+        }
     }
 
     fun updateCustomWorkflow(template: String, fileName: String) {
-        updateConfig {
-            it.copy(
-                customWorkflowTemplate = template,
-                customWorkflowName = fileName,
-                customWorkflowBackend = it.activeBackend
+        updateConfig { config ->
+            config.copy(
+                customWorkflows = config.customWorkflows + (
+                    config.activeBackend to com.pockettavern.app.domain.model.CustomImageWorkflowDefinition(
+                        name = fileName,
+                        template = template
+                    )
+                )
             )
         }
     }
 
     fun clearCustomWorkflow() {
-        updateConfig {
-            it.copy(
-                customWorkflowTemplate = "",
-                customWorkflowName = "",
-                customWorkflowBackend = ""
+        updateConfig { config ->
+            config.copy(
+                customWorkflows = config.customWorkflows - config.activeBackend
             )
         }
     }
