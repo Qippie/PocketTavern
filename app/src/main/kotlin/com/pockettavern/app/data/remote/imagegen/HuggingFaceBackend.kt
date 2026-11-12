@@ -49,6 +49,7 @@ class HuggingFaceBackend(
         supportsSeed = true,
         supportsNegativePrompt = true,
         supportsResolutionPresets = true,
+        supportsCustomWorkflow = true,
         requiresApiKey = true
     )
 
@@ -103,12 +104,16 @@ class HuggingFaceBackend(
                 seed = if (params.seed == -1) null else params.seed
             )
 
-            val body = json.encodeToString(HfRequest.serializer(), HfRequest(
-                inputs = params.prompt,
-                parameters = hfParams
-            ))
-
             val modelId = config.huggingfaceModel.ifBlank { "stabilityai/stable-diffusion-xl-base-1.0" }
+            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val body = if (customTemplate != null) {
+                CustomImageTemplate.renderJson(customTemplate, params, modelId)
+            } else {
+                json.encodeToString(HfRequest.serializer(), HfRequest(
+                    inputs = params.prompt,
+                    parameters = hfParams
+                ))
+            }
             val request = Request.Builder()
                 .url("https://api-inference.huggingface.co/models/$modelId")
                 .addHeader("Authorization", "Bearer ${config.huggingfaceApiKey}")
