@@ -1612,6 +1612,24 @@ private fun ExtensionEditDialog(
         }
     }
     val expandedDropdown = remember { mutableStateMapOf<String, Boolean>() }
+    val context = LocalContext.current
+    var pendingFileFieldKey by remember { mutableStateOf<String?>(null) }
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val key = pendingFileFieldKey
+        pendingFileFieldKey = null
+        if (uri != null && key != null) {
+            runCatching {
+                context.contentResolver.openInputStream(uri)
+                    ?.bufferedReader()
+                    ?.use { it.readText() }
+                    .orEmpty()
+            }.getOrNull()?.takeIf { it.isNotBlank() }?.let { fileText ->
+                fieldValues[key] = fileText
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1619,7 +1637,53 @@ private fun ExtensionEditDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 fields.forEach { field ->
-                    if (field.type == "select" && field.options.isNotEmpty()) {
+                    if (field.type == "file") {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = field.label,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    pendingFileFieldKey = field.key
+                                    filePicker.launch(
+                                        arrayOf(
+                                            "application/json",
+                                            "text/plain",
+                                            "application/octet-stream"
+                                        )
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    if ((fieldValues[field.key] ?: "").isBlank())
+                                        "Import file"
+                                    else
+                                        "Replace file"
+                                )
+                            }
+                            if ((fieldValues[field.key] ?: "").isNotBlank()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "Workflow loaded",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    TextButton(onClick = { fieldValues[field.key] = "" }) {
+                                        Text("Clear")
+                                    }
+                                }
+                            }
+                        }
+                    } else if (field.type == "select" && field.options.isNotEmpty()) {
                         val isExpanded = expandedDropdown[field.key] ?: false
                         ExposedDropdownMenuBox(
                             expanded = isExpanded,
