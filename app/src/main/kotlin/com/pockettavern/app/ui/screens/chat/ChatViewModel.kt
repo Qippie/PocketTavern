@@ -1704,6 +1704,8 @@ No preamble, no explanation. Just the numbered list."""
             val seed = options.optInt("seed", imageGenConfig.seed)
             val sourceImageBase64 = options.optString("sourceImageBase64").ifEmpty { null }
             val denoisingStrength = options.optDouble("denoisingStrength", 0.55).toFloat()
+            val workflowModeOverride = options.optString("workflowMode").ifEmpty { null }
+            val customWorkflowOverride = options.optString("customWorkflow").ifEmpty { null }
 
             val params = ForgeGenerationParams(
                 prompt = prompt,
@@ -1716,7 +1718,9 @@ No preamble, no explanation. Just the numbered list."""
                 seed = seed,
                 sourceImageBase64 = sourceImageBase64,
                 denoisingStrength = denoisingStrength,
-                clipSkip = imageGenConfig.clipSkip
+                clipSkip = imageGenConfig.clipSkip,
+                workflowModeOverride = workflowModeOverride,
+                customWorkflowOverride = customWorkflowOverride
             )
 
             var resultBase64 = ""
