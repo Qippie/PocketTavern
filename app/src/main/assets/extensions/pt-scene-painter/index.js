@@ -30,6 +30,8 @@
         negativePrompt:    'blurry, low quality, deformed, bad anatomy, text, watermark',
         promptPrefix:      '',     // prepended to every prompt (e.g. Pony XL quality tags)
         artStyleByChar:    {},
+        workflowByChar:    {},
+        customWorkflowByChar: {},
         portraitImg2Img:   true,   // use character avatar as img2img source for portraits
         denoisingStrength: 0.55    // 0.0 = identical, 1.0 = ignore source image
     };
@@ -44,6 +46,8 @@
         if (s.negativePrompt      === undefined) s.negativePrompt      = DEFAULT_SETTINGS.negativePrompt;
         if (s.promptPrefix        === undefined) s.promptPrefix        = DEFAULT_SETTINGS.promptPrefix;
         if (!s.artStyleByChar)                   s.artStyleByChar      = {};
+        if (!s.workflowByChar)                    s.workflowByChar      = {};
+        if (!s.customWorkflowByChar)              s.customWorkflowByChar = {};
         if (s.portraitImg2Img     === undefined) s.portraitImg2Img     = DEFAULT_SETTINGS.portraitImg2Img;
         if (s.denoisingStrength   === undefined) s.denoisingStrength   = DEFAULT_SETTINGS.denoisingStrength;
         return s;
@@ -183,6 +187,18 @@
             PT.log('[ScenePainter] SD prompt (' + mode + '): ' + sdPrompt.substring(0, 150) + '...');
 
             var options = {};
+
+            var workflowMode = s.workflowByChar[charName] || 'GLOBAL';
+            if (workflowMode === 'STANDARD') {
+                options.workflowMode = 'STANDARD';
+            } else if (workflowMode === 'CUSTOM') {
+                options.workflowMode = 'CUSTOM';
+                var charWorkflow = s.customWorkflowByChar[charName] || '';
+                if (charWorkflow.trim()) {
+                    options.customWorkflow = charWorkflow;
+                }
+            }
+
             if (s.negativePrompt) {
                 options.negativePrompt = s.negativePrompt;
             }
@@ -271,10 +287,16 @@
         PT.getAvailableModels().then(function (models) {
             var modelOptions = ['-- keep current --'].concat(models || []);
             var presetOptions = [PRESET_NONE].concat(Object.keys(PRESETS));
+            var workflowOptions = ['-- keep global --', 'Standard', 'Custom'];
+            var workflowValue = '-- keep global --';
+            if (s.workflowByChar[charName] === 'STANDARD') workflowValue = 'Standard';
+            if (s.workflowByChar[charName] === 'CUSTOM') workflowValue = 'Custom';
 
             return PT.showEditDialog('Art Style — ' + charName, [
                 { key: 'preset',    label: 'Preset (overrides Style / Prefix / Negative)', type: 'select', options: presetOptions,  value: PRESET_NONE },
                 { key: 'model',     label: 'Model',                                        type: 'select', options: modelOptions,   value: modelOptions[0] },
+                { key: 'workflow',  label: 'Workflow',                                     type: 'select', options: workflowOptions, value: workflowValue },
+                { key: 'workflowJson', label: 'Custom Workflow JSON (optional; blank = global custom)', value: s.customWorkflowByChar[charName] || '' },
                 { key: 'prefix',    label: 'Prompt Prefix (model tags)',                   value: s.promptPrefix || '' },
                 { key: 'style',     label: 'Art Style',                                    value: currentStyle },
                 { key: 'negative',  label: 'Negative Prompt',                              value: s.negativePrompt || '' },
@@ -293,6 +315,21 @@
                 if (result.prefix !== undefined)           s.promptPrefix             = result.prefix.trim();
                 if (result.style && result.style.trim())   s.artStyleByChar[charName] = result.style.trim();
                 if (result.negative !== undefined)         s.negativePrompt           = result.negative.trim();
+            }
+
+            var workflowSelection = result.workflow || '-- keep global --';
+            if (workflowSelection === 'Standard') {
+                s.workflowByChar[charName] = 'STANDARD';
+            } else if (workflowSelection === 'Custom') {
+                s.workflowByChar[charName] = 'CUSTOM';
+            } else {
+                delete s.workflowByChar[charName];
+            }
+
+            if (result.workflowJson !== undefined) {
+                var wf = String(result.workflowJson || '').trim();
+                if (wf) s.customWorkflowByChar[charName] = wf;
+                else delete s.customWorkflowByChar[charName];
             }
 
             var d = parseFloat(result.denoising);
