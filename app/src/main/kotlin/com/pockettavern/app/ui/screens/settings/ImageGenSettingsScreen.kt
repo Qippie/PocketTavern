@@ -429,7 +429,8 @@ fun ImageGenSettingsScreen(
             }
 
             // ── Workflow ────────────────────────────────────────────
-            item {
+            if (caps.supportsCustomWorkflow) {
+                item {
                 ImageGenSectionCard {
                     Text(
                         "Workflow",
@@ -522,6 +523,7 @@ fun ImageGenSettingsScreen(
                         }
                     }
                 }
+            }
             }
 
             // ── Sampler / Model (if supported) ──────────────────────
