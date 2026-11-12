@@ -296,7 +296,7 @@
                 { key: 'preset',    label: 'Preset (overrides Style / Prefix / Negative)', type: 'select', options: presetOptions,  value: PRESET_NONE },
                 { key: 'model',     label: 'Model',                                        type: 'select', options: modelOptions,   value: modelOptions[0] },
                 { key: 'workflow',  label: 'Workflow',                                     type: 'select', options: workflowOptions, value: workflowValue },
-                { key: 'workflowJson', label: 'Custom Workflow JSON (optional; blank = global custom)', value: s.customWorkflowByChar[charName] || '' },
+                { key: 'workflowJson', label: 'Custom Workflow (optional; blank = global custom)', type: 'file', value: s.customWorkflowByChar[charName] || '' },
                 { key: 'prefix',    label: 'Prompt Prefix (model tags)',                   value: s.promptPrefix || '' },
                 { key: 'style',     label: 'Art Style',                                    value: currentStyle },
                 { key: 'negative',  label: 'Negative Prompt',                              value: s.negativePrompt || '' },
