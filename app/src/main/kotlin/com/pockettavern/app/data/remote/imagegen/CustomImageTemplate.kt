@@ -20,18 +20,14 @@ object CustomImageTemplate {
         params: ForgeGenerationParams,
         backend: ImageGenBackendType
     ): String? {
-        val mode = params.workflowModeOverride ?: config.workflowMode
+        val mode = params.workflowModeOverride ?: config.workflowModeFor(backend)
         if (mode != "CUSTOM") return null
 
         params.customWorkflowOverride?.takeIf { it.isNotBlank() }?.let { return it }
 
-        if (config.customWorkflowTemplate.isBlank()) return null
-        if (
-            config.customWorkflowBackend.isNotBlank() &&
-            config.customWorkflowBackend != backend.name
-        ) return null
-
-        return config.customWorkflowTemplate
+        return config.customWorkflowFor(backend)
+            ?.template
+            ?.takeIf { it.isNotBlank() }
     }
 
     fun renderJson(
