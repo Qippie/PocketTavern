@@ -3,6 +3,7 @@ package com.pockettavern.app.ui.screens.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pockettavern.app.data.local.SettingsDataStore
+import com.pockettavern.app.data.remote.imagegen.WorkflowImportValidator
 import com.pockettavern.app.data.local.inference.SdxlModelManager
 import com.pockettavern.app.data.repository.ImageGenRepository
 import com.pockettavern.app.domain.model.AvailableModel
@@ -30,6 +31,7 @@ data class ImageGenSettingsUiState(
     val isLoading: Boolean = true,
     val isTesting: Boolean = false,
     val testResult: String? = null,
+    val workflowImportError: String? = null,
     val isLoadingSamplers: Boolean = false,
     val isLoadingModels: Boolean = false,
     // On-device SDXL (MNN) model sets
@@ -213,6 +215,13 @@ class ImageGenSettingsViewModel @Inject constructor(
     }
 
     fun updateCustomWorkflow(template: String, fileName: String) {
+        val backend = _uiState.value.config.activeBackendType
+        val error = WorkflowImportValidator.validate(template, backend)
+        if (error != null) {
+            _uiState.update { it.copy(workflowImportError = error) }
+            return
+        }
+        _uiState.update { it.copy(workflowImportError = null) }
         updateConfig { config ->
             config.copy(
                 customWorkflows = config.customWorkflows + (
@@ -226,6 +235,7 @@ class ImageGenSettingsViewModel @Inject constructor(
     }
 
     fun clearCustomWorkflow() {
+        _uiState.update { it.copy(workflowImportError = null) }
         updateConfig { config ->
             config.copy(
                 customWorkflows = config.customWorkflows - config.activeBackend
