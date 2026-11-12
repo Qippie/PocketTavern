@@ -81,6 +81,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Keep the development APK separate from the installed production app.
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
