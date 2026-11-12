@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: custom-image-workflows-${{ github.ref }}
+  group: custom-image-workflows-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
