@@ -52,6 +52,7 @@ class NanoGptBackend(
 
     override val capabilities = ImageGenCapabilities(
         supportsResolutionPresets = false,
+        supportsCustomWorkflow = true,
         requiresApiKey = true
     )
 
@@ -122,10 +123,15 @@ class NanoGptBackend(
             DebugLogger.logKeyValue("apiKeyPrefix", config.nanoGptApiKey.take(12) + "...")
             DebugLogger.logKeyValue("prompt", params.prompt.take(80))
 
-            val reqBody = json.encodeToString(
-                NanoGptGenerateRequest.serializer(),
-                NanoGptGenerateRequest(prompt = params.prompt, model = model)
-            )
+            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val reqBody = if (customTemplate != null) {
+                CustomImageTemplate.renderJson(customTemplate, params, model)
+            } else {
+                json.encodeToString(
+                    NanoGptGenerateRequest.serializer(),
+                    NanoGptGenerateRequest(prompt = params.prompt, model = model)
+                )
+            }
             DebugLogger.logKeyValue("requestBody", reqBody)
 
             val request = Request.Builder()
