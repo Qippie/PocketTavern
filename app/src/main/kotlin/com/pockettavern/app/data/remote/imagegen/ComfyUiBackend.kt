@@ -36,6 +36,7 @@ class ComfyUiBackend(
         supportsNegativePrompt = true,
         supportsResolutionPresets = true,
         supportsProgress = true,
+        supportsCustomWorkflow = true,
         requiresUrl = true
     )
 
@@ -138,17 +139,42 @@ class ComfyUiBackend(
             val config = settingsDataStore.getImageGenConfig()
             val seed = if (params.seed == -1) (0..Int.MAX_VALUE).random().toLong() else params.seed.toLong()
 
-            // Build a simple txt2img workflow
-            val workflow = buildDefaultWorkflow(
-                prompt = params.prompt,
-                negativePrompt = params.negativePrompt,
-                width = params.width,
-                height = params.height,
-                steps = params.steps,
-                cfgScale = params.cfgScale,
-                sampler = config.sampler.lowercase().replace(" ", "_"),
-                seed = seed
-            )
+            val requestedMode = params.workflowModeOverride ?: config.workflowMode
+            val requestedCustom = params.customWorkflowOverride ?: config.customWorkflowTemplate
+            val customMatchesBackend =
+                params.customWorkflowOverride != null ||
+                config.customWorkflowBackend.isBlank() ||
+                config.customWorkflowBackend == ImageGenBackendType.COMFYUI.name
+
+            val workflow = if (
+                requestedMode == "CUSTOM" &&
+                requestedCustom.isNotBlank() &&
+                customMatchesBackend
+            ) {
+                applyPocketTavernInputsToCustomWorkflow(
+                    workflowJson = requestedCustom,
+                    prompt = params.prompt,
+                    negativePrompt = params.negativePrompt,
+                    width = params.width,
+                    height = params.height,
+                    steps = params.steps,
+                    cfgScale = params.cfgScale,
+                    sampler = config.sampler,
+                    seed = seed,
+                    modelName = config.sdModel
+                )
+            } else {
+                buildDefaultWorkflow(
+                    prompt = params.prompt,
+                    negativePrompt = params.negativePrompt,
+                    width = params.width,
+                    height = params.height,
+                    steps = params.steps,
+                    cfgScale = params.cfgScale,
+                    sampler = normalizeSamplerName(config.sampler),
+                    seed = seed
+                )
+            }
 
             val promptPayload = buildJsonObject {
                 put("prompt", json.parseToJsonElement(workflow))
@@ -190,10 +216,11 @@ class ComfyUiBackend(
                 val promptHistory = historyRoot[promptId]?.jsonObject
                 if (promptHistory != null) {
                     val outputs = promptHistory["outputs"]?.jsonObject
-                    // Find the SaveImage node output (node "9" in our workflow)
-                    val saveNode = outputs?.get("9")?.jsonObject
-                    val images = saveNode?.get("images")?.jsonArray
-                    val firstImage = images?.firstOrNull()?.jsonObject
+                    val firstImage = outputs
+                        ?.values
+                        ?.asSequence()
+                        ?.mapNotNull { it.jsonObject["images"]?.jsonArray?.firstOrNull()?.jsonObject }
+                        ?.firstOrNull()
 
                     if (firstImage != null) {
                         val filename = firstImage["filename"]?.jsonPrimitive?.contentOrNull
@@ -235,6 +262,105 @@ class ComfyUiBackend(
         } catch (e: Exception) {
             Result.Error(Exception("Failed to interrupt: ${e.message}", e))
         }
+    }
+
+    private fun normalizeSamplerName(name: String): String {
+        return when (name.trim().lowercase()) {
+            "euler" -> "euler"
+            "euler a", "euler_a" -> "euler_ancestral"
+            "dpm++ 2m karras", "dpmpp_2m_karras" -> "dpmpp_2m"
+            "dpm++ sde karras", "dpmpp_sde_karras" -> "dpmpp_sde"
+            "ddim" -> "ddim"
+            "unipc", "uni_pc" -> "uni_pc"
+            else -> name.trim().lowercase().replace(" ", "_")
+        }
+    }
+
+    private fun applyPocketTavernInputsToCustomWorkflow(
+        workflowJson: String,
+        prompt: String,
+        negativePrompt: String,
+        width: Int,
+        height: Int,
+        steps: Int,
+        cfgScale: Float,
+        sampler: String,
+        seed: Long,
+        modelName: String
+    ): String {
+        val root = json.parseToJsonElement(workflowJson).jsonObject
+        val nodes = root.toMutableMap()
+
+        fun nodeObject(id: String?): JsonObject? =
+            id?.let { nodes[it]?.jsonObject }
+
+        fun replaceNodeInputs(id: String, newInputs: Map<String, JsonElement>) {
+            val oldNode = nodes[id]?.jsonObject ?: return
+            val updated = buildJsonObject {
+                oldNode.forEach { (k, v) ->
+                    if (k == "inputs") put(k, JsonObject(newInputs))
+                    else put(k, v)
+                }
+            }
+            nodes[id] = updated
+        }
+
+        val samplerEntry = nodes.entries.firstOrNull { (_, value) ->
+            value.jsonObject["class_type"]?.jsonPrimitive?.contentOrNull == "KSampler"
+        } ?: throw IllegalArgumentException(
+            "Custom ComfyUI workflow contains no KSampler node. Export an API workflow with a KSampler."
+        )
+
+        val samplerId = samplerEntry.key
+        val samplerNode = samplerEntry.value.jsonObject
+        val inputs = samplerNode["inputs"]?.jsonObject?.toMutableMap()
+            ?: throw IllegalArgumentException("KSampler has no inputs")
+
+        val positiveId = inputs["positive"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.contentOrNull
+        val negativeId = inputs["negative"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.contentOrNull
+        val latentId = inputs["latent_image"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.contentOrNull
+        val modelId = inputs["model"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.contentOrNull
+
+        inputs["seed"] = JsonPrimitive(seed)
+        inputs["steps"] = JsonPrimitive(steps)
+        inputs["cfg"] = JsonPrimitive(cfgScale)
+        inputs["sampler_name"] = JsonPrimitive(normalizeSamplerName(sampler))
+        replaceNodeInputs(samplerId, inputs)
+
+        if (positiveId != null) {
+            val pInputs = nodeObject(positiveId)?.get("inputs")?.jsonObject?.toMutableMap()
+            if (pInputs != null && pInputs.containsKey("text")) {
+                pInputs["text"] = JsonPrimitive(prompt)
+                replaceNodeInputs(positiveId, pInputs)
+            }
+        }
+
+        if (negativeId != null) {
+            val nInputs = nodeObject(negativeId)?.get("inputs")?.jsonObject?.toMutableMap()
+            if (nInputs != null && nInputs.containsKey("text")) {
+                nInputs["text"] = JsonPrimitive(negativePrompt)
+                replaceNodeInputs(negativeId, nInputs)
+            }
+        }
+
+        if (latentId != null) {
+            val lInputs = nodeObject(latentId)?.get("inputs")?.jsonObject?.toMutableMap()
+            if (lInputs != null) {
+                if (lInputs.containsKey("width")) lInputs["width"] = JsonPrimitive(width)
+                if (lInputs.containsKey("height")) lInputs["height"] = JsonPrimitive(height)
+                replaceNodeInputs(latentId, lInputs)
+            }
+        }
+
+        if (modelName.isNotBlank() && modelId != null) {
+            val mInputs = nodeObject(modelId)?.get("inputs")?.jsonObject?.toMutableMap()
+            if (mInputs != null && mInputs.containsKey("ckpt_name")) {
+                mInputs["ckpt_name"] = JsonPrimitive(modelName)
+                replaceNodeInputs(modelId, mInputs)
+            }
+        }
+
+        return JsonObject(nodes).toString()
     }
 
     private fun buildDefaultWorkflow(
