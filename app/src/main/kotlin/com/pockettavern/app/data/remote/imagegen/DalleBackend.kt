@@ -58,6 +58,7 @@ class DalleBackend(
 
     override val capabilities = ImageGenCapabilities(
         supportsResolutionPresets = true,
+        supportsCustomWorkflow = true,
         requiresApiKey = true
     )
 
@@ -101,12 +102,17 @@ class DalleBackend(
             // DALL-E supports specific sizes
             val size = pickDalleSize(config.dalleModel, params.width, params.height)
 
-            val body = json.encodeToString(DalleRequest.serializer(), DalleRequest(
-                model = config.dalleModel,
-                prompt = params.prompt,
-                size = size,
-                responseFormat = "b64_json"
-            ))
+            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val body = if (customTemplate != null) {
+                CustomImageTemplate.renderJson(customTemplate, params, config.dalleModel)
+            } else {
+                json.encodeToString(DalleRequest.serializer(), DalleRequest(
+                    model = config.dalleModel,
+                    prompt = params.prompt,
+                    size = size,
+                    responseFormat = "b64_json"
+                ))
+            }
 
             val request = Request.Builder()
                 .url("https://api.openai.com/v1/images/generations")
