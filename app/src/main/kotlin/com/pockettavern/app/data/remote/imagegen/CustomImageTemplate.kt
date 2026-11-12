@@ -41,7 +41,6 @@ object CustomImageTemplate {
             "{{negative_prompt}}" to params.negativePrompt,
             "{{sampler}}" to params.sampler,
             "{{model}}" to model,
-            "{{source_image}}" to (params.sourceImageBase64 ?: ""),
             "{{source_image}}" to (params.sourceImageBase64 ?: "")
         )
         stringValues.forEach { (token, value) ->
@@ -73,7 +72,8 @@ object CustomImageTemplate {
             "{{prompt}}" to params.prompt,
             "{{negative_prompt}}" to params.negativePrompt,
             "{{sampler}}" to params.sampler,
-            "{{model}}" to model
+            "{{model}}" to model,
+            "{{source_image}}" to (params.sourceImageBase64 ?: "")
         )
         stringValues.forEach { (token, value) ->
             out = out.replace(token, URLEncoder.encode(value, "UTF-8"))
