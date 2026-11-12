@@ -14,7 +14,9 @@ data class ForgeGenerationParams(
     /** How much to change the source image (0.0 = identical, 1.0 = ignore source). */
     val denoisingStrength: Float = 0.5f,
     /** CLIP skip (SD WebUI: CLIP_stop_at_last_layers). 0/1 = server default. */
-    val clipSkip: Int = 0
+    val clipSkip: Int = 0,
+    val workflowModeOverride: String? = null,
+    val customWorkflowOverride: String? = null
 )
 
 data class ForgeProgress(
