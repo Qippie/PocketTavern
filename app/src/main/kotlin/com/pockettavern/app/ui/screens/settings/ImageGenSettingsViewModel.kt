@@ -125,7 +125,8 @@ class ImageGenSettingsViewModel @Inject constructor(
             it.copy(
                 capabilities = backend?.capabilities ?: ImageGenCapabilities(),
                 samplers = emptyList(),
-                models = emptyList()
+                models = emptyList(),
+                workflowImportError = null
             )
         }
     }
