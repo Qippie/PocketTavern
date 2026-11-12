@@ -204,6 +204,30 @@ class ImageGenSettingsViewModel @Inject constructor(
         updateConfig { it.copy(width = width, height = height) }
     }
 
+    fun updateWorkflowMode(mode: String) {
+        updateConfig { it.copy(workflowMode = mode) }
+    }
+
+    fun updateCustomWorkflow(template: String, fileName: String) {
+        updateConfig {
+            it.copy(
+                customWorkflowTemplate = template,
+                customWorkflowName = fileName,
+                customWorkflowBackend = it.activeBackend
+            )
+        }
+    }
+
+    fun clearCustomWorkflow() {
+        updateConfig {
+            it.copy(
+                customWorkflowTemplate = "",
+                customWorkflowName = "",
+                customWorkflowBackend = ""
+            )
+        }
+    }
+
     fun testConnection() {
         viewModelScope.launch {
             _uiState.update { it.copy(isTesting = true, testResult = null) }
