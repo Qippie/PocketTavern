@@ -32,6 +32,7 @@ class PollinationsBackend(
         supportsNegativePrompt = true,
         supportsSeed = true,
         supportsModels = true,
+        supportsCustomWorkflow = true,
         requiresApiKey = true
     )
 
@@ -70,34 +71,46 @@ class PollinationsBackend(
         emit(GenerationState.Starting)
         try {
             val config = getConfig()
-            val encodedPrompt = withContext(Dispatchers.IO) {
-                URLEncoder.encode(params.prompt, "UTF-8")
-            }
-            val urlBuilder = StringBuilder("$BASE_URL/$encodedPrompt")
-            urlBuilder.append("?width=${params.width}")
-            urlBuilder.append("&height=${params.height}")
-            urlBuilder.append("&nologo=true")
-
             val model = config.pollinationsModel.ifBlank { "flux" }
-            urlBuilder.append("&model=$model")
+            val customTemplate = CustomImageTemplate.selected(config, params, type)
 
-            if (params.seed != -1) {
-                urlBuilder.append("&seed=${params.seed}")
-            }
-            if (params.negativePrompt.isNotBlank()) {
-                val encodedNeg = withContext(Dispatchers.IO) {
-                    URLEncoder.encode(params.negativePrompt, "UTF-8")
+            val requestUrl = if (customTemplate != null) {
+                val rendered = CustomImageTemplate.renderUrl(customTemplate, params, model)
+                if (!rendered.startsWith("http://") && !rendered.startsWith("https://")) {
+                    throw IllegalArgumentException(
+                        "Pollinations custom workflow must be a full http(s) URL template"
+                    )
                 }
-                urlBuilder.append("&negative=$encodedNeg")
-            }
-            if (config.pollinationsApiKey.isNotBlank()) {
-                urlBuilder.append("&key=${config.pollinationsApiKey}")
+                rendered
+            } else {
+                val encodedPrompt = withContext(Dispatchers.IO) {
+                    URLEncoder.encode(params.prompt, "UTF-8")
+                }
+                val urlBuilder = StringBuilder("$BASE_URL/$encodedPrompt")
+                urlBuilder.append("?width=${params.width}")
+                urlBuilder.append("&height=${params.height}")
+                urlBuilder.append("&nologo=true")
+                urlBuilder.append("&model=$model")
+
+                if (params.seed != -1) {
+                    urlBuilder.append("&seed=${params.seed}")
+                }
+                if (params.negativePrompt.isNotBlank()) {
+                    val encodedNeg = withContext(Dispatchers.IO) {
+                        URLEncoder.encode(params.negativePrompt, "UTF-8")
+                    }
+                    urlBuilder.append("&negative=$encodedNeg")
+                }
+                if (config.pollinationsApiKey.isNotBlank()) {
+                    urlBuilder.append("&key=${config.pollinationsApiKey}")
+                }
+                urlBuilder.toString()
             }
 
             emit(GenerationState.InProgress(progress = 0f, eta = 0f))
 
             val request = Request.Builder()
-                .url(urlBuilder.toString())
+                .url(requestUrl)
                 .header("User-Agent", "PocketTavern")
                 .get()
                 .build()
