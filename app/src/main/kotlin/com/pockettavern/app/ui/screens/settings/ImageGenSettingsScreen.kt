@@ -444,7 +444,7 @@ fun ImageGenSettingsScreen(
                         onExpandedChange = { workflowExpanded = it }
                     ) {
                         OutlinedTextField(
-                            value = if (config.workflowMode == "CUSTOM") "Custom" else "Standard",
+                            value = if (config.activeWorkflowMode == "CUSTOM") "Custom" else "Standard",
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Workflow") },
@@ -475,7 +475,7 @@ fun ImageGenSettingsScreen(
                         }
                     }
 
-                    if (config.workflowMode == "CUSTOM") {
+                    if (config.activeWorkflowMode == "CUSTOM") {
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
                             onClick = {
@@ -490,22 +490,22 @@ fun ImageGenSettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                if (config.customWorkflowName.isBlank())
+                                if (config.activeCustomWorkflow?.name.orEmpty().isBlank())
                                     "Import Workflow"
                                 else
                                     "Replace Workflow"
                             )
                         }
 
-                        if (config.customWorkflowName.isNotBlank()) {
+                        if (config.activeCustomWorkflow?.name.orEmpty().isNotBlank()) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                "Imported: ${config.customWorkflowName}",
+                                "Imported: ${config.activeCustomWorkflow?.name.orEmpty()}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                "Backend at import: ${config.customWorkflowBackend.ifBlank { "unspecified" }}",
+                                "For: ${config.activeBackendType.displayName}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
