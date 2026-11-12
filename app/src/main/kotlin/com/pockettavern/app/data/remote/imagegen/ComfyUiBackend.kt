@@ -139,17 +139,13 @@ class ComfyUiBackend(
             val config = settingsDataStore.getImageGenConfig()
             val seed = if (params.seed == -1) (0..Int.MAX_VALUE).random().toLong() else params.seed.toLong()
 
-            val requestedMode = params.workflowModeOverride ?: config.workflowMode
-            val requestedCustom = params.customWorkflowOverride ?: config.customWorkflowTemplate
-            val customMatchesBackend =
-                params.customWorkflowOverride != null ||
-                config.customWorkflowBackend.isBlank() ||
-                config.customWorkflowBackend == ImageGenBackendType.COMFYUI.name
+            val requestedMode = params.workflowModeOverride ?: config.workflowModeFor(type)
+            val requestedCustom = params.customWorkflowOverride
+                ?: config.customWorkflowFor(type)?.template.orEmpty()
 
             val workflow = if (
                 requestedMode == "CUSTOM" &&
-                requestedCustom.isNotBlank() &&
-                customMatchesBackend
+                requestedCustom.isNotBlank()
             ) {
                 applyPocketTavernInputsToCustomWorkflow(
                     workflowJson = requestedCustom,
