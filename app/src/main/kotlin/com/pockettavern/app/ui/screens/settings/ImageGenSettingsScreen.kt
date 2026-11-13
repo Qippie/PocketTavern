@@ -433,7 +433,7 @@ fun ImageGenSettingsScreen(
                 item {
                 ImageGenSectionCard {
                     Text(
-                        "Workflow",
+                        config.activeBackendType.templateLabel,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -448,7 +448,7 @@ fun ImageGenSettingsScreen(
                             value = if (config.activeWorkflowMode == "CUSTOM") "Custom" else "Standard",
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Workflow") },
+                            label = { Text(config.activeBackendType.templateLabel) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(workflowExpanded) },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -492,9 +492,9 @@ fun ImageGenSettingsScreen(
                         ) {
                             Text(
                                 if (config.activeCustomWorkflow?.name.orEmpty().isBlank())
-                                    "Import Workflow"
+                                    "Import ${config.activeBackendType.templateLabel}"
                                 else
-                                    "Replace Workflow"
+                                    "Replace ${config.activeBackendType.templateLabel}"
                             )
                         }
 
@@ -520,12 +520,12 @@ fun ImageGenSettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             TextButton(onClick = { viewModel.clearCustomWorkflow() }) {
-                                Text("Remove imported workflow")
+                                Text("Remove imported ${config.activeBackendType.templateLabel}")
                             }
                         } else {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                "Import a workflow or request template for the selected image backend.",
+                                "Import a ${config.activeBackendType.templateLabel} for ${config.activeBackendType.displayName}.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
