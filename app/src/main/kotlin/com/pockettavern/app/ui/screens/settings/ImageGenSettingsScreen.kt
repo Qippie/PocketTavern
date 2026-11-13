@@ -476,6 +476,15 @@ fun ImageGenSettingsScreen(
                         }
                     }
 
+                        uiState.workflowImportError?.let { error ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = error,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
                     if (config.activeWorkflowMode == "CUSTOM") {
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
@@ -495,15 +504,6 @@ fun ImageGenSettingsScreen(
                                     "Import ${config.activeBackendType.templateLabel}"
                                 else
                                     "Replace ${config.activeBackendType.templateLabel}"
-                            )
-                        }
-
-                        uiState.workflowImportError?.let { error ->
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = error,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
                             )
                         }
 
