@@ -12,6 +12,18 @@ enum class ImageGenBackendType {
     NANO_GPT,
     LOCAL_SD_MNN;
 
+    val templateLabel: String
+        get() = when (this) {
+            COMFYUI -> "API Workflow"
+            SD_WEBUI -> "JSON Request Template"
+            DALLE -> "Image Generation Request"
+            STABILITY -> "JSON Request Template"
+            HUGGINGFACE -> "Inference Request Template"
+            NANO_GPT -> "Image Generation Request"
+            POLLINATIONS -> "URL Template"
+            LOCAL_SD_MNN -> "Custom Template"
+        }
+
     val displayName: String
         get() = when (this) {
             SD_WEBUI -> "SD WebUI / Forge"
