@@ -8,21 +8,21 @@ object WorkflowImportValidator {
     private val json = Json { isLenient = false }
 
     fun validate(template: String, backend: ImageGenBackendType): String? {
-        val label = backend.displayName
-        if (template.isBlank()) return "Empty file. Not a $label request template."
+        val label = "${backend.displayName} ${backend.templateLabel}"
+        if (template.isBlank()) return "Empty file. Not a valid $label."
 
         // Pollinations uses a URL template rather than a JSON request body.
         if (backend == ImageGenBackendType.POLLINATIONS) {
             val url = template.trim()
             return if ((url.startsWith("https://") || url.startsWith("http://")) &&
                 url.contains("{{prompt}}") && !url.any { it.isWhitespace() })
-                null else "Not a Pollinations URL template. Provide a full http(s) URL containing {{prompt}}."
+                null else "Not a valid Pollinations URL Template. Provide a full http(s) URL containing {{prompt}}."
         }
 
         val root = try { json.parseToJsonElement(template) } catch (_: Exception) {
-            return "Invalid JSON. Not a $label request template."
+            return "Invalid JSON. Not a valid $label."
         }
-        if (root !is JsonObject || root.isEmpty()) return "Not a $label request template: expected a non-empty JSON object."
+        if (root !is JsonObject || root.isEmpty()) return "Not a valid $label: expected a non-empty JSON object."
 
         val editor = root["nodes"] is JsonArray && root["links"] is JsonArray
         val comfyNodes = root.values.filterIsInstance<JsonObject>()
@@ -35,17 +35,17 @@ object WorkflowImportValidator {
             (root[key] as JsonPrimitive).isString
         return when (backend) {
             ImageGenBackendType.COMFYUI -> when {
-                editor -> "Not a ComfyUI API workflow. Export the workflow in API format."
-                !comfy || comfyNodes.size != root.size -> "Not a ComfyUI API workflow: expected node IDs, class_type and inputs."
+                editor -> "Not a valid ComfyUI API Workflow. Export the workflow in API format."
+                !comfy || comfyNodes.size != root.size -> "Not a valid ComfyUI API Workflow: expected node IDs, class_type and inputs."
                 comfyNodes.none { it["class_type"]?.jsonPrimitive?.contentOrNull == "KSampler" } ->
-                    "Not a supported ComfyUI API workflow: KSampler node required."
+                    "Not a supported ComfyUI API Workflow: KSampler node required."
                 else -> null
             }
             ImageGenBackendType.SD_WEBUI ->
-                if (stringField("prompt")) null else "Not an SD WebUI / Forge request template: prompt must be a string."
+                if (stringField("prompt")) null else "Not a valid SD WebUI / Forge JSON Request Template: prompt must be a string."
             ImageGenBackendType.DALLE ->
                 if (stringField("prompt") && stringField("model")) null
-                else "Not a DALL-E (OpenAI) request template: prompt and model must be strings."
+                else "Not a valid DALL-E (OpenAI) Image Generation Request: prompt and model must be strings."
             ImageGenBackendType.STABILITY ->
                 if (root["text_prompts"] is JsonArray &&
                     (root["text_prompts"] as JsonArray).isNotEmpty() &&
@@ -53,13 +53,13 @@ object WorkflowImportValidator {
                         it is JsonObject && it["text"] is JsonPrimitive &&
                             (it["text"] as JsonPrimitive).isString
                     }) null
-                else "Not a Stability AI request template: text_prompts must contain text entries."
+                else "Not a valid Stability AI JSON Request Template: text_prompts must contain text entries."
             ImageGenBackendType.HUGGINGFACE ->
                 if (stringField("inputs")) null
-                else "Not a HuggingFace request template: inputs must be a string."
+                else "Not a valid HuggingFace Inference Request Template: inputs must be a string."
             ImageGenBackendType.NANO_GPT ->
                 if (stringField("prompt") && stringField("model")) null
-                else "Not a nano-gpt request template: prompt and model must be strings."
+                else "Not a valid nano-gpt Image Generation Request: prompt and model must be strings."
             ImageGenBackendType.LOCAL_SD_MNN ->
                 "On-Device (SDXL) does not support custom request templates."
             ImageGenBackendType.POLLINATIONS -> error("Handled above")
