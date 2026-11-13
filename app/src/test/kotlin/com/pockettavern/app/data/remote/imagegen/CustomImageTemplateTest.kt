@@ -2,6 +2,10 @@ package com.pockettavern.app.data.remote.imagegen
 
 import com.pockettavern.app.domain.model.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.content
+import kotlinx.serialization.json.int
 import org.junit.Assert.*
 import org.junit.Test
 
