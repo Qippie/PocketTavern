@@ -126,7 +126,7 @@ class ImageGenSettingsViewModel @Inject constructor(
                 capabilities = backend?.capabilities ?: ImageGenCapabilities(),
                 samplers = emptyList(),
                 models = emptyList(),
-                workflowImportError = workflowImportErrors[type]\n            )
+                workflowImportError = lastAttemptedWorkflow?.let { WorkflowImportValidator.validate(it, type) }\n            )
         }
     }
 
@@ -216,13 +216,12 @@ class ImageGenSettingsViewModel @Inject constructor(
 
     fun updateCustomWorkflow(template: String, fileName: String) {
         val backend = _uiState.value.config.activeBackendType
+        lastAttemptedWorkflow = template
         val error = WorkflowImportValidator.validate(template, backend)
         if (error != null) {
-            workflowImportErrors[backend] = error
             _uiState.update { it.copy(workflowImportError = error) }
             return
         }
-        workflowImportErrors.remove(backend)
         _uiState.update { it.copy(workflowImportError = null) }
         updateConfig { config ->
             config.copy(
@@ -237,7 +236,7 @@ class ImageGenSettingsViewModel @Inject constructor(
     }
 
     fun clearCustomWorkflow() {
-        workflowImportErrors.remove(_uiState.value.config.activeBackendType)
+        lastAttemptedWorkflow = null
         _uiState.update { it.copy(workflowImportError = null) }
         updateConfig { config ->
             config.copy(
