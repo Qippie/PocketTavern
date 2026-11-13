@@ -29,16 +29,16 @@ object WorkflowImportValidator {
             .filter { it["class_type"] is JsonPrimitive && it["inputs"] is JsonObject }
         val comfy = comfyNodes.isNotEmpty()
         if (backend != ImageGenBackendType.COMFYUI && (comfy || editor))
-            return "This is a ComfyUI workflow, not a $label request template."
+            return "This is a ComfyUI workflow, not a valid $label."
 
         fun stringField(key: String) = root[key] is JsonPrimitive &&
             (root[key] as JsonPrimitive).isString
         return when (backend) {
             ImageGenBackendType.COMFYUI -> when {
-                editor -> "Not a valid ComfyUI API Workflow. Export the workflow in API format."
+                editor -> "Not a valid ComfyUI Workflow. Export the workflow in API format."
                 !comfy || comfyNodes.size != root.size -> "Not a valid ComfyUI API Workflow: expected node IDs, class_type and inputs."
                 comfyNodes.none { it["class_type"]?.jsonPrimitive?.contentOrNull == "KSampler" } ->
-                    "Not a supported ComfyUI API Workflow: KSampler node required."
+                    "Not a supported ComfyUI Workflow: KSampler node required."
                 else -> null
             }
             ImageGenBackendType.SD_WEBUI ->
