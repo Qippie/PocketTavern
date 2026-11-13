@@ -48,7 +48,8 @@ class ImageGenSettingsViewModel @Inject constructor(
     private val sdxlModelManager: SdxlModelManager,
 ) : ViewModel() {
 
-    // Last imported or attempted template; used to re-check on every backend switch.\n    private var lastAttemptedWorkflow: String? = null
+    // Last imported or attempted template; used to re-check on every backend switch.
+    private var lastAttemptedWorkflow: String? = null
 
     private val _uiState = MutableStateFlow(ImageGenSettingsUiState())
     val uiState: StateFlow<ImageGenSettingsUiState> = _uiState.asStateFlow()
