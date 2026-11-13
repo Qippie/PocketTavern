@@ -3,47 +3,66 @@ package com.pockettavern.app.data.remote.imagegen
 import com.pockettavern.app.domain.model.ImageGenBackendType
 import kotlinx.serialization.json.*
 
-/** Rejects incompatible request templates before they overwrite a saved workflow. */
+/** Checks request-template shape for the selected backend before saving it. */
 object WorkflowImportValidator {
     private val json = Json { isLenient = false }
 
     fun validate(template: String, backend: ImageGenBackendType): String? {
-        if (template.isBlank()) return "The selected file is empty."
-        val root = try {
-            json.parseToJsonElement(template)
-        } catch (_: Exception) {
-            return "Invalid JSON. Export a JSON API workflow or request template."
+        val label = backend.displayName
+        if (template.isBlank()) return "Empty file. Not a $label request template."
+
+        // Pollinations uses a URL template rather than a JSON request body.
+        if (backend == ImageGenBackendType.POLLINATIONS) {
+            val url = template.trim()
+            return if ((url.startsWith("https://") || url.startsWith("http://")) &&
+                url.contains("{{prompt}}") && !url.any { it.isWhitespace() })
+                null else "Not a Pollinations URL template. Provide a full http(s) URL containing {{prompt}}."
         }
-        if (root !is JsonObject || root.isEmpty()) return "A workflow must be a non-empty JSON object."
 
-        val nodes = root.values.filterIsInstance<JsonObject>()
-        val comfyNodes = nodes.filter { it["class_type"] is JsonPrimitive && it["inputs"] is JsonObject }
-        val isComfy = comfyNodes.isNotEmpty()
-        val looksLikeComfyEditor = root["nodes"] is JsonArray && root["links"] is JsonArray
+        val root = try { json.parseToJsonElement(template) } catch (_: Exception) {
+            return "Invalid JSON. Not a $label request template."
+        }
+        if (root !is JsonObject || root.isEmpty()) return "Not a $label request template: expected a non-empty JSON object."
 
+        val editor = root["nodes"] is JsonArray && root["links"] is JsonArray
+        val comfyNodes = root.values.filterIsInstance<JsonObject>()
+            .filter { it["class_type"] is JsonPrimitive && it["inputs"] is JsonObject }
+        val comfy = comfyNodes.isNotEmpty()
+        if (backend != ImageGenBackendType.COMFYUI && (comfy || editor))
+            return "This is a ComfyUI workflow, not a $label request template."
+
+        fun stringField(key: String) = root[key] is JsonPrimitive &&
+            (root[key] as JsonPrimitive).isString
         return when (backend) {
-            ImageGenBackendType.COMFYUI -> {
-                when {
-                    looksLikeComfyEditor -> "This is a ComfyUI editor workflow. Export in API format instead."
-                    !isComfy || comfyNodes.size != root.size ->
-                        "ComfyUI requires an API-format workflow with node IDs, class_type and inputs."
-                    comfyNodes.none { it["class_type"]?.jsonPrimitive?.contentOrNull == "KSampler" } ->
-                        "This PocketTavern build requires a ComfyUI KSampler node."
-                    else -> null
-                }
+            ImageGenBackendType.COMFYUI -> when {
+                editor -> "Not a ComfyUI API workflow. Export the workflow in API format."
+                !comfy || comfyNodes.size != root.size -> "Not a ComfyUI API workflow: expected node IDs, class_type and inputs."
+                comfyNodes.none { it["class_type"]?.jsonPrimitive?.contentOrNull == "KSampler" } ->
+                    "Not a supported ComfyUI API workflow: KSampler node required."
+                else -> null
             }
-            ImageGenBackendType.SD_WEBUI -> {
-                when {
-                    isComfy || looksLikeComfyEditor -> "This is a ComfyUI workflow, not an SD WebUI / Forge request template."
-                    root["prompt"] == null -> "Forge templates require a prompt field (for example, \"{{prompt}}\")."
-                    else -> null
-                }
-            }
-            else -> {
-                if (isComfy || looksLikeComfyEditor)
-                    "ComfyUI node workflows cannot be used with ${backend.displayName}. Select ComfyUI instead."
-                else null
-            }
+            ImageGenBackendType.SD_WEBUI ->
+                if (stringField("prompt")) null else "Not an SD WebUI / Forge request template: prompt must be a string."
+            ImageGenBackendType.DALLE ->
+                if (stringField("prompt") && stringField("model")) null
+                else "Not a DALL-E (OpenAI) request template: prompt and model must be strings."
+            ImageGenBackendType.STABILITY ->
+                if (root["text_prompts"] is JsonArray &&
+                    (root["text_prompts"] as JsonArray).isNotEmpty() &&
+                    (root["text_prompts"] as JsonArray).all {
+                        it is JsonObject && it["text"] is JsonPrimitive &&
+                            (it["text"] as JsonPrimitive).isString
+                    }) null
+                else "Not a Stability AI request template: text_prompts must contain text entries."
+            ImageGenBackendType.HUGGINGFACE ->
+                if (stringField("inputs")) null
+                else "Not a HuggingFace request template: inputs must be a string."
+            ImageGenBackendType.NANO_GPT ->
+                if (stringField("prompt") && stringField("model")) null
+                else "Not a nano-gpt request template: prompt and model must be strings."
+            ImageGenBackendType.LOCAL_SD_MNN ->
+                "On-Device (SDXL) does not support custom request templates."
+            ImageGenBackendType.POLLINATIONS -> error("Handled above")
         }
     }
 }
