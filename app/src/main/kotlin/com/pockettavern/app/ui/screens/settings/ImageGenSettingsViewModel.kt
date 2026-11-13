@@ -48,7 +48,7 @@ class ImageGenSettingsViewModel @Inject constructor(
     private val sdxlModelManager: SdxlModelManager,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ImageGenSettingsUiState())
+    // Keep rejected-import messages per backend during this settings session.\n    private val workflowImportErrors = mutableMapOf<ImageGenBackendType, String>()\n\n    private val _uiState = MutableStateFlow(ImageGenSettingsUiState())
     val uiState: StateFlow<ImageGenSettingsUiState> = _uiState.asStateFlow()
 
     init {
@@ -126,8 +126,7 @@ class ImageGenSettingsViewModel @Inject constructor(
                 capabilities = backend?.capabilities ?: ImageGenCapabilities(),
                 samplers = emptyList(),
                 models = emptyList(),
-                workflowImportError = null
-            )
+                workflowImportError = workflowImportErrors[type]\n            )
         }
     }
 
@@ -219,9 +218,11 @@ class ImageGenSettingsViewModel @Inject constructor(
         val backend = _uiState.value.config.activeBackendType
         val error = WorkflowImportValidator.validate(template, backend)
         if (error != null) {
+            workflowImportErrors[backend] = error
             _uiState.update { it.copy(workflowImportError = error) }
             return
         }
+        workflowImportErrors.remove(backend)
         _uiState.update { it.copy(workflowImportError = null) }
         updateConfig { config ->
             config.copy(
@@ -236,6 +237,7 @@ class ImageGenSettingsViewModel @Inject constructor(
     }
 
     fun clearCustomWorkflow() {
+        workflowImportErrors.remove(_uiState.value.config.activeBackendType)
         _uiState.update { it.copy(workflowImportError = null) }
         updateConfig { config ->
             config.copy(
