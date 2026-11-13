@@ -14,7 +14,7 @@ enum class ImageGenBackendType {
 
     val templateLabel: String
         get() = when (this) {
-            COMFYUI -> "API Workflow"
+            COMFYUI -> "Workflow"
             SD_WEBUI -> "JSON Request Template"
             DALLE -> "Image Generation Request"
             STABILITY -> "JSON Request Template"
