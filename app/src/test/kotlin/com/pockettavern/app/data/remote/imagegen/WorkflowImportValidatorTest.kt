@@ -39,4 +39,35 @@ class WorkflowImportValidatorTest {
         val noSampler = """{"100":{"class_type":"CheckpointLoaderSimple","inputs":{}}}"""
         assertNotNull(WorkflowImportValidator.validate(noSampler, ImageGenBackendType.COMFYUI))
     }
+    @Test fun rejectsComfyWorkflowForEveryOtherBackendWithItsName() {
+        for (backend in ImageGenBackendType.entries.filter { it != ImageGenBackendType.COMFYUI }) {
+            val error = WorkflowImportValidator.validate(comfy, backend)
+            assertNotNull("Expected rejection for ${backend.displayName}", error)
+            assertTrue("Expected backend name in: $error", error!!.contains(backend.displayName))
+        }
+    }
+
+    @Test fun acceptsBackendSpecificRequestTemplates() {
+        val templates = mapOf(
+            ImageGenBackendType.SD_WEBUI to """{"prompt":"{{prompt}}"}""",
+            ImageGenBackendType.DALLE to """{"prompt":"{{prompt}}","model":"dall-e-3"}""",
+            ImageGenBackendType.STABILITY to """{"text_prompts":[{"text":"{{prompt}}","weight":1}]}""",
+            ImageGenBackendType.HUGGINGFACE to """{"inputs":"{{prompt}}"}""",
+            ImageGenBackendType.NANO_GPT to """{"prompt":"{{prompt}}","model":"chroma"}""",
+            ImageGenBackendType.POLLINATIONS to "https://image.pollinations.ai/prompt/{{prompt}}"
+        )
+        for ((backend, template) in templates) {
+            assertNull("Expected valid ${backend.displayName} template", WorkflowImportValidator.validate(template, backend))
+        }
+    }
+
+    @Test fun rejectsWrongRequestFormatWithBackendSpecificMessage() {
+        val wrong = """{"unrelated":"value"}"""
+        for (backend in ImageGenBackendType.entries) {
+            val error = WorkflowImportValidator.validate(wrong, backend)
+            assertNotNull(error)
+            assertTrue("Expected backend name in: $error", error!!.contains(backend.displayName))
+        }
+    }
+
 }
