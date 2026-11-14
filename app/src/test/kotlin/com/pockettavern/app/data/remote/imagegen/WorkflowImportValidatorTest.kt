@@ -70,4 +70,24 @@ class WorkflowImportValidatorTest {
         }
     }
 
+    @Test fun acceptsNumericPlaceholdersInBackendTemplates() {
+        val templates = mapOf(
+            ImageGenBackendType.COMFYUI to """{"1":{"class_type":"KSampler","inputs":{"seed":{{seed}},"steps":{{steps}}}}}""",
+            ImageGenBackendType.SD_WEBUI to """{"prompt":"{{prompt}}","steps":{{steps}},"cfg_scale":{{cfg}}}""",
+            ImageGenBackendType.DALLE to """{"prompt":"{{prompt}}","model":"{{model}}","width":{{width}}}""",
+            ImageGenBackendType.STABILITY to """{"text_prompts":[{"text":"{{prompt}}"}],"steps":{{steps}}}""",
+            ImageGenBackendType.HUGGINGFACE to """{"inputs":"{{prompt}}","parameters":{"steps":{{steps}}}}""",
+            ImageGenBackendType.NANO_GPT to """{"prompt":"{{prompt}}","model":"{{model}}","height":{{height}}}"""
+        )
+        for ((backend, template) in templates) {
+            assertNull("Numeric tokens must be valid for ${backend.displayName}",
+                WorkflowImportValidator.validate(template, backend))
+        }
+    }
+
+    @Test fun unknownUnquotedPlaceholdersRemainInvalidJson() {
+        val invalid = """{"prompt":"{{prompt}}","steps":{{unrecognized}}}"""
+        assertNotNull(WorkflowImportValidator.validate(invalid, ImageGenBackendType.SD_WEBUI))
+    }
+
 }
