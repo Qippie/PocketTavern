@@ -1,6 +1,7 @@
 package com.pockettavern.app.data.remote.imagegen
 
 import com.pockettavern.app.data.local.SettingsDataStore
+import com.pockettavern.app.domain.model.ImageGenConfig
 import com.pockettavern.app.data.remote.api.ForgeApi
 import com.pockettavern.app.data.remote.dto.forge.Img2ImgRequest
 import com.pockettavern.app.data.remote.dto.forge.SetOptionsRequest
@@ -19,11 +20,17 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-class SdWebuiBackend(
+class SdWebuiBackend private constructor(
     private val apiProvider: () -> ForgeApi,
     private val httpClient: OkHttpClient,
-    private val settingsDataStore: SettingsDataStore
+    private val configProvider: suspend () -> ImageGenConfig
 ) : ImageGenBackend {
+
+    constructor(apiProvider: () -> ForgeApi, httpClient: OkHttpClient, settingsDataStore: SettingsDataStore) :
+        this(apiProvider, httpClient, { settingsDataStore.getImageGenConfig() })
+
+    internal constructor(apiProvider: () -> ForgeApi, httpClient: OkHttpClient, config: ImageGenConfig) :
+        this(apiProvider, httpClient, { config })
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -83,7 +90,7 @@ class SdWebuiBackend(
         emit(GenerationState.Starting)
 
         try {
-            val config = settingsDataStore.getImageGenConfig()
+            val config = configProvider()
             val customTemplate = CustomImageTemplate.selected(config, params, type)
 
             val image = if (customTemplate != null) {
