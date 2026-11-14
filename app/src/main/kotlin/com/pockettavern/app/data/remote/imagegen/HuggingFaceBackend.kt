@@ -134,7 +134,11 @@ class HuggingFaceBackend private constructor(
                         val error = response.body?.string() ?: "HTTP ${response.code}"
                         throw Exception(error)
                     }
-                    response.body?.bytes() ?: throw Exception("Empty response")
+                    val responseBody = response.body ?: throw Exception("Empty response")
+                    if (responseBody.contentType()?.subtype?.contains("json", ignoreCase = true) == true) {
+                        throw Exception("Expected image data but received JSON")
+                    }
+                    responseBody.bytes().takeIf { it.isNotEmpty() } ?: throw Exception("Empty image response")
                 }
             }
 
