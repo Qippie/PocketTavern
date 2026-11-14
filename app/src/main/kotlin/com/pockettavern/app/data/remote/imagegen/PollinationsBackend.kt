@@ -123,7 +123,11 @@ class PollinationsBackend private constructor(
             val imageBytes = withContext(Dispatchers.IO) {
                 httpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) throw Exception("HTTP ${response.code}: ${response.message}")
-                    response.body?.bytes() ?: throw Exception("Empty response")
+                    val responseBody = response.body ?: throw Exception("Empty response")
+                    if (responseBody.contentType()?.subtype?.contains("json", ignoreCase = true) == true) {
+                        throw Exception("Expected image data but received JSON")
+                    }
+                    responseBody.bytes().takeIf { it.isNotEmpty() } ?: throw Exception("Empty image response")
                 }
             }
             val base64 = Base64.getEncoder().encodeToString(imageBytes)
