@@ -64,7 +64,7 @@ object CustomImageTemplate {
         return placeholder.replace(template) { match ->
             val key = match.value.removePrefix("{{").removeSuffix("}}")
             val value = values.getValue(key)
-            if (key in stringTokens) URLEncoder.encode(value, "UTF-8") else value
+            if (key in stringTokens) URLEncoder.encode(value, "UTF-8").replace("+", "%20") else value
         }
     }
 
