@@ -238,7 +238,11 @@ class ComfyUiBackend private constructor(
                             val imageBytes = withContext(Dispatchers.IO) {
                                 httpClient.newCall(imgReq).execute().use { resp ->
                                     if (!resp.isSuccessful) throw Exception("ComfyUI image HTTP ${resp.code}")
-                                    resp.body?.bytes() ?: throw Exception("Failed to download image")
+                                    val body = resp.body ?: throw Exception("Failed to download image")
+                                    if (body.contentType()?.subtype?.contains("json", ignoreCase = true) == true) {
+                                        throw Exception("ComfyUI returned JSON instead of an image")
+                                    }
+                                    body.bytes().takeIf { it.isNotEmpty() } ?: throw Exception("Empty image response")
                                 }
                             }
                             val base64 = Base64.getEncoder().encodeToString(imageBytes)
