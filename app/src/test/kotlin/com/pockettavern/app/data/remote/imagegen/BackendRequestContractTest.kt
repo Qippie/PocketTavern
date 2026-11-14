@@ -50,7 +50,8 @@ class BackendRequestContractTest {
                 .post(body.toRequestBody("application/json".toMediaType()))
                 .build()
             assertEquals("POST for ${backend.displayName}", "POST", request.method)
-            assertEquals("application/json", request.body!!.contentType().toString())
+            assertEquals("application", request.body!!.contentType()!!.type)
+            assertEquals("json", request.body!!.contentType()!!.subtype)
             assertNotNull(Json.parseToJsonElement(body).jsonObject)
         }
     }
