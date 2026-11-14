@@ -1,9 +1,6 @@
 name: Custom Image Workflows – Comprehensive Test Suite
 
 on:
-  push:
-    branches:
-      - feature/custom-image-workflows
   workflow_dispatch:
     inputs:
       test_focus:
@@ -15,7 +12,7 @@ on:
 # A short, distinct title for every run. Push-triggered builds use the commit
 # message; manually dispatched builds can specify an explicit test focus.
 # Results and exact test counts remain in the automatically generated summary.
-run-name: 'Comprehensive Test Suite | Mocked Backend Integration & Error Handling (Additional Tests to the Previous 241)'
+run-name: "Build #${{ github.run_number }} | ${{ inputs.test_focus || github.event.head_commit.message || 'Comprehensive Regression' }}"
 
 permissions:
   contents: read
