@@ -131,8 +131,10 @@ internal fun simulatedBackend(
     backend: com.pockettavern.app.domain.model.ImageGenBackendType,
     http: OkHttpClient,
     config: com.pockettavern.app.domain.model.ImageGenConfig
-): ImageGenBackend =
-    when (backend) {
+): ImageGenBackend {
+    // JVM unit tests have no android.util.Log implementation.
+    com.pockettavern.app.util.DebugLogger.setEnabled(false)
+    return when (backend) {
         com.pockettavern.app.domain.model.ImageGenBackendType.SD_WEBUI ->
             SdWebuiBackend({ error("Legacy Forge API should not be called in custom mode") }, http, config)
         com.pockettavern.app.domain.model.ImageGenBackendType.COMFYUI -> ComfyUiBackend(http, config)
@@ -144,3 +146,4 @@ internal fun simulatedBackend(
         com.pockettavern.app.domain.model.ImageGenBackendType.LOCAL_SD_MNN ->
             error("On-device backend does not use HTTP")
     }
+}
