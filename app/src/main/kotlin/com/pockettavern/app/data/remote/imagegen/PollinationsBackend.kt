@@ -1,7 +1,8 @@
 package com.pockettavern.app.data.remote.imagegen
 
-import android.util.Base64
+import java.util.Base64
 import com.pockettavern.app.data.local.SettingsDataStore
+import com.pockettavern.app.domain.model.ImageGenConfig
 import com.pockettavern.app.domain.model.ForgeGenerationParams
 import com.pockettavern.app.domain.model.GenerationState
 import com.pockettavern.app.domain.model.ImageGenBackendType
@@ -10,16 +11,21 @@ import com.pockettavern.app.domain.model.Result
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
 
-class PollinationsBackend(
+class PollinationsBackend private constructor(
     private val httpClient: OkHttpClient,
-    private val settingsDataStore: SettingsDataStore
+    private val configProvider: suspend () -> ImageGenConfig
 ) : ImageGenBackend {
+
+    constructor(httpClient: OkHttpClient, settingsDataStore: SettingsDataStore) :
+        this(httpClient, { settingsDataStore.getImageGenConfig() })
+
+    internal constructor(httpClient: OkHttpClient, config: ImageGenConfig) :
+        this(httpClient, { config })
 
     companion object {
         private const val BASE_URL = "https://gen.pollinations.ai/image"
@@ -36,7 +42,7 @@ class PollinationsBackend(
         requiresApiKey = true
     )
 
-    private fun getConfig() = runBlocking { settingsDataStore.getImageGenConfig() }
+    private suspend fun getConfig() = configProvider()
 
     override suspend fun testConnection(): Result<Boolean> {
         return try {
@@ -120,7 +126,7 @@ class PollinationsBackend(
                     response.body?.bytes() ?: throw Exception("Empty response")
                 }
             }
-            val base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+            val base64 = Base64.getEncoder().encodeToString(imageBytes)
             emit(GenerationState.Complete(imageBase64 = base64))
         } catch (e: Exception) {
             emit(GenerationState.Error(e.message ?: "Generation failed"))
