@@ -2,8 +2,17 @@ name: Custom Image Workflows – Comprehensive Test Suite
 
 on:
   workflow_dispatch:
+    inputs:
+      test_focus:
+        description: "Specific test focus for this run (e.g. Build C - ComfyUI Integration)"
+        type: string
+        required: false
+        default: "Comprehensive Regression"
 
-run-name: 'Comprehensive Test Suite | Validation, Templates, Backend Integration, HTTP, Error Handling & Regression'
+# A short, distinct title for every run. Push-triggered builds use the commit
+# message; manually dispatched builds can specify an explicit test focus.
+# Results and exact test counts remain in the automatically generated summary.
+run-name: "Build #${{ github.run_number }} | ${{ inputs.test_focus || github.event.head_commit.message || 'Comprehensive Regression' }}"
 
 permissions:
   contents: read
@@ -52,7 +61,7 @@ jobs:
           passed = totals['tests'] - totals['failures'] - totals['errors'] - totals['skipped']
           summary = os.environ['GITHUB_STEP_SUMMARY']
           with open(summary, 'a') as f:
-              f.write('# Custom Image Workflows – Comprehensive Test Suite\n\n')
+              f.write(f'# Custom Image Workflows – Test Run #{os.environ["GITHUB_RUN_NUMBER"]}\\n\\n')
               f.write('**Validation · Templates · Backend Integration · HTTP · Error Handling · Regression**\n\n')
               f.write(f'**{totals["tests"]} Tests** | {passed} passed | {totals["failures"]} failed | {totals["errors"]} errors | {totals["skipped"]} skipped\n\n')
               f.write('Offline automated tests; live external API integration is not verified.\n')
