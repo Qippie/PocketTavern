@@ -1,6 +1,7 @@
 package com.pockettavern.app.data.remote.imagegen
 
 import com.pockettavern.app.data.local.SettingsDataStore
+import com.pockettavern.app.domain.model.ImageGenConfig
 import com.pockettavern.app.util.DebugLogger
 import com.pockettavern.app.domain.model.ForgeGenerationParams
 import com.pockettavern.app.domain.model.GenerationState
@@ -41,10 +42,16 @@ private data class NanoGptImage(
     val b64Json: String? = null
 )
 
-class NanoGptBackend(
+class NanoGptBackend private constructor(
     private val httpClient: OkHttpClient,
-    private val settingsDataStore: SettingsDataStore
+    private val configProvider: suspend () -> ImageGenConfig
 ) : ImageGenBackend {
+
+    constructor(httpClient: OkHttpClient, settingsDataStore: SettingsDataStore) :
+        this(httpClient, { settingsDataStore.getImageGenConfig() })
+
+    internal constructor(httpClient: OkHttpClient, config: ImageGenConfig) :
+        this(httpClient, { config })
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -57,7 +64,7 @@ class NanoGptBackend(
     )
 
     override suspend fun testConnection(): Result<Boolean> {
-        val config = settingsDataStore.getImageGenConfig()
+        val config = configProvider()
         if (config.nanoGptApiKey.isBlank()) {
             return Result.Error(Exception("No API key configured"))
         }
@@ -82,7 +89,7 @@ class NanoGptBackend(
     override suspend fun getSchedulers(): Result<List<String>> = Result.Success(emptyList())
 
     override suspend fun getModels(): Result<List<String>> {
-        val config = settingsDataStore.getImageGenConfig()
+        val config = configProvider()
         if (config.nanoGptApiKey.isBlank()) {
             return Result.Error(Exception("No API key configured"))
         }
@@ -112,7 +119,7 @@ class NanoGptBackend(
         DebugLogger.logSection("NanoGpt Generate")
         emit(GenerationState.Starting)
         try {
-            val config = settingsDataStore.getImageGenConfig()
+            val config = configProvider()
             if (config.nanoGptApiKey.isBlank()) {
                 emit(GenerationState.Error("No nano-gpt API key configured"))
                 return@flow
