@@ -211,6 +211,7 @@ class ComfyUiBackend private constructor(
 
                 val historyBody = withContext(Dispatchers.IO) {
                     httpClient.newCall(historyReq).execute().use { response ->
+                        if (!response.isSuccessful) throw Exception("ComfyUI history HTTP ${response.code}")
                         response.body?.string()
                     }
                 } ?: continue
@@ -236,6 +237,7 @@ class ComfyUiBackend private constructor(
                             val imgReq = Request.Builder().url(imgUrl).get().build()
                             val imageBytes = withContext(Dispatchers.IO) {
                                 httpClient.newCall(imgReq).execute().use { resp ->
+                                    if (!resp.isSuccessful) throw Exception("ComfyUI image HTTP ${resp.code}")
                                     resp.body?.bytes() ?: throw Exception("Failed to download image")
                                 }
                             }
