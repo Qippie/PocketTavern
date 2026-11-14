@@ -7,6 +7,10 @@ import kotlinx.serialization.json.*
 object WorkflowImportValidator {
     private val json = Json { isLenient = false }
 
+    // Bare numeric placeholders are valid template syntax, but not valid JSON before rendering.
+    // Replace only the supported numeric tokens with JSON numbers during shape validation.
+    private val numericPlaceholders = Regex("""\{\{(?:seed|steps|cfg|width|height|denoise|clip_skip)\}\}""")
+
     fun validate(template: String, backend: ImageGenBackendType): String? {
         val label = "${backend.displayName} ${backend.templateLabel}"
         if (template.isBlank()) return "Empty file. Not a valid $label."
@@ -19,7 +23,7 @@ object WorkflowImportValidator {
                 null else "Not a valid Pollinations URL Template. Provide a full http(s) URL containing {{prompt}}."
         }
 
-        val root = try { json.parseToJsonElement(template) } catch (_: Exception) {
+        val root = try { json.parseToJsonElement(numericPlaceholders.replace(template, "0")) } catch (_: Exception) {
             return "Invalid JSON. Not a valid $label."
         }
         if (root !is JsonObject || root.isEmpty()) return "Not a valid $label: expected a non-empty JSON object."
