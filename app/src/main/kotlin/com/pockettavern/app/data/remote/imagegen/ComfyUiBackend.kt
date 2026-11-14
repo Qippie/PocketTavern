@@ -1,7 +1,8 @@
 package com.pockettavern.app.data.remote.imagegen
 
-import android.util.Base64
+import java.util.Base64
 import com.pockettavern.app.data.local.SettingsDataStore
+import com.pockettavern.app.domain.model.ImageGenConfig
 import com.pockettavern.app.domain.model.ForgeGenerationParams
 import com.pockettavern.app.domain.model.GenerationState
 import com.pockettavern.app.domain.model.ImageGenBackendType
@@ -19,10 +20,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-class ComfyUiBackend(
+class ComfyUiBackend private constructor(
     private val httpClient: OkHttpClient,
-    private val settingsDataStore: SettingsDataStore
+    private val configProvider: suspend () -> ImageGenConfig
 ) : ImageGenBackend {
+
+    constructor(httpClient: OkHttpClient, settingsDataStore: SettingsDataStore) :
+        this(httpClient, { settingsDataStore.getImageGenConfig() })
+
+    internal constructor(httpClient: OkHttpClient, config: ImageGenConfig) :
+        this(httpClient, { config })
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -41,7 +48,7 @@ class ComfyUiBackend(
     )
 
     private suspend fun getBaseUrl(): String {
-        val config = settingsDataStore.getImageGenConfig()
+        val config = configProvider()
         return config.comfyuiUrl.trimEnd('/')
     }
 
@@ -136,7 +143,7 @@ class ComfyUiBackend(
                 return@flow
             }
 
-            val config = settingsDataStore.getImageGenConfig()
+            val config = configProvider()
             val seed = if (params.seed == -1) (0..Int.MAX_VALUE).random().toLong() else params.seed.toLong()
 
             val requestedMode = params.workflowModeOverride ?: config.workflowModeFor(type)
@@ -232,7 +239,7 @@ class ComfyUiBackend(
                                     resp.body?.bytes() ?: throw Exception("Failed to download image")
                                 }
                             }
-                            val base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+                            val base64 = Base64.getEncoder().encodeToString(imageBytes)
                             emit(GenerationState.Complete(imageBase64 = base64))
                             completed = true
                         }
