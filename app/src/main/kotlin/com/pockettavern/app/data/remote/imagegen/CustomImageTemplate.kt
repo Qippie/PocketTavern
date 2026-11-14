@@ -30,67 +30,42 @@ object CustomImageTemplate {
             ?.takeIf { it.isNotBlank() }
     }
 
-    fun renderJson(
-        template: String,
-        params: ForgeGenerationParams,
-        model: String = ""
-    ): String {
-        var out = template
-        val stringValues = mapOf(
-            "{{prompt}}" to params.prompt,
-            "{{negative_prompt}}" to params.negativePrompt,
-            "{{sampler}}" to params.sampler,
-            "{{model}}" to model,
-            "{{source_image}}" to (params.sourceImageBase64 ?: "")
-        )
-        stringValues.forEach { (token, value) ->
-            out = out.replace(token, escapeJsonString(value))
-        }
+    private val placeholder = Regex("""\\{\\{(?:prompt|negative_prompt|sampler|model|source_image|seed|steps|cfg|width|height|denoise|clip_skip)\\}\\}""")
 
-        val numericValues = mapOf(
-            "{{seed}}" to params.seed.toString(),
-            "{{steps}}" to params.steps.toString(),
-            "{{cfg}}" to params.cfgScale.toString(),
-            "{{width}}" to params.width.toString(),
-            "{{height}}" to params.height.toString(),
-            "{{denoise}}" to params.denoisingStrength.toString(),
-            "{{clip_skip}}" to params.clipSkip.toString()
-        )
-        numericValues.forEach { (token, value) ->
-            out = out.replace(token, value)
+    private fun values(params: ForgeGenerationParams, model: String): Map<String, String> = mapOf(
+        "prompt" to params.prompt,
+        "negative_prompt" to params.negativePrompt,
+        "sampler" to params.sampler,
+        "model" to model,
+        "source_image" to (params.sourceImageBase64 ?: ""),
+        "seed" to params.seed.toString(),
+        "steps" to params.steps.toString(),
+        "cfg" to params.cfgScale.toString(),
+        "width" to params.width.toString(),
+        "height" to params.height.toString(),
+        "denoise" to params.denoisingStrength.toString(),
+        "clip_skip" to params.clipSkip.toString()
+    )
+
+    private val stringTokens = setOf("prompt", "negative_prompt", "sampler", "model", "source_image")
+
+    /** Single-pass replacement prevents user text containing {{model}} etc. being expanded again. */
+    fun renderJson(template: String, params: ForgeGenerationParams, model: String = ""): String {
+        val values = values(params, model)
+        return placeholder.replace(template) { match ->
+            val key = match.value.removePrefix("{{").removeSuffix("}}")
+            val value = values.getValue(key)
+            if (key in stringTokens) escapeJsonString(value) else value
         }
-        return out
     }
 
-    fun renderUrl(
-        template: String,
-        params: ForgeGenerationParams,
-        model: String = ""
-    ): String {
-        var out = template
-        val stringValues = mapOf(
-            "{{prompt}}" to params.prompt,
-            "{{negative_prompt}}" to params.negativePrompt,
-            "{{sampler}}" to params.sampler,
-            "{{model}}" to model,
-            "{{source_image}}" to (params.sourceImageBase64 ?: "")
-        )
-        stringValues.forEach { (token, value) ->
-            out = out.replace(token, URLEncoder.encode(value, "UTF-8"))
+    fun renderUrl(template: String, params: ForgeGenerationParams, model: String = ""): String {
+        val values = values(params, model)
+        return placeholder.replace(template) { match ->
+            val key = match.value.removePrefix("{{").removeSuffix("}}")
+            val value = values.getValue(key)
+            if (key in stringTokens) URLEncoder.encode(value, "UTF-8") else value
         }
-        val numericValues = mapOf(
-            "{{seed}}" to params.seed.toString(),
-            "{{steps}}" to params.steps.toString(),
-            "{{cfg}}" to params.cfgScale.toString(),
-            "{{width}}" to params.width.toString(),
-            "{{height}}" to params.height.toString(),
-            "{{denoise}}" to params.denoisingStrength.toString(),
-            "{{clip_skip}}" to params.clipSkip.toString()
-        )
-        numericValues.forEach { (token, value) ->
-            out = out.replace(token, value)
-        }
-        return out
     }
 
     private fun escapeJsonString(value: String): String {
