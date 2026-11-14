@@ -1,7 +1,8 @@
 package com.pockettavern.app.data.remote.imagegen
 
-import android.util.Base64
+import java.util.Base64
 import com.pockettavern.app.data.local.SettingsDataStore
+import com.pockettavern.app.domain.model.ImageGenConfig
 import com.pockettavern.app.domain.model.ForgeGenerationParams
 import com.pockettavern.app.domain.model.GenerationState
 import com.pockettavern.app.domain.model.ImageGenBackendType
@@ -34,10 +35,16 @@ private data class HfParameters(
     val seed: Int? = null
 )
 
-class HuggingFaceBackend(
+class HuggingFaceBackend private constructor(
     private val httpClient: OkHttpClient,
-    private val settingsDataStore: SettingsDataStore
+    private val configProvider: suspend () -> ImageGenConfig
 ) : ImageGenBackend {
+
+    constructor(httpClient: OkHttpClient, settingsDataStore: SettingsDataStore) :
+        this(httpClient, { settingsDataStore.getImageGenConfig() })
+
+    internal constructor(httpClient: OkHttpClient, config: ImageGenConfig) :
+        this(httpClient, { config })
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; encodeDefaults = false; explicitNulls = false }
 
@@ -54,7 +61,7 @@ class HuggingFaceBackend(
     )
 
     override suspend fun testConnection(): Result<Boolean> {
-        val config = settingsDataStore.getImageGenConfig()
+        val config = configProvider()
         if (config.huggingfaceApiKey.isBlank()) {
             return Result.Error(Exception("No API key configured"))
         }
@@ -89,7 +96,7 @@ class HuggingFaceBackend(
     override fun generate(params: ForgeGenerationParams): Flow<GenerationState> = flow {
         emit(GenerationState.Starting)
         try {
-            val config = settingsDataStore.getImageGenConfig()
+            val config = configProvider()
             if (config.huggingfaceApiKey.isBlank()) {
                 emit(GenerationState.Error("No HuggingFace API key configured"))
                 return@flow
@@ -131,7 +138,7 @@ class HuggingFaceBackend(
                 }
             }
 
-            val base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+            val base64 = Base64.getEncoder().encodeToString(imageBytes)
             emit(GenerationState.Complete(imageBase64 = base64))
         } catch (e: Exception) {
             emit(GenerationState.Error(e.message ?: "Generation failed"))
