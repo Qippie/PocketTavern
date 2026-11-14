@@ -52,12 +52,12 @@ jobs:
           passed = totals['tests'] - totals['failures'] - totals['errors'] - totals['skipped']
           summary = os.environ['GITHUB_STEP_SUMMARY']
           with open(summary, 'a') as f:
-              f.write('# Custom Image Workflows – Comprehensive Test Suite\\n\\n')
-              f.write('**Validation · Templates · Backend Integration · HTTP · Error Handling · Regression**\\n\\n')
-              f.write(f'**{totals["tests"]} Tests** | {passed} passed | {totals["failures"]} failed | {totals["errors"]} errors | {totals["skipped"]} skipped\\n\\n')
-              f.write('Offline automated tests; live external API integration is not verified.\\n')
+              f.write('# Custom Image Workflows – Comprehensive Test Suite\n\n')
+              f.write('**Validation · Templates · Backend Integration · HTTP · Error Handling · Regression**\n\n')
+              f.write(f'**{totals["tests"]} Tests** | {passed} passed | {totals["failures"]} failed | {totals["errors"]} errors | {totals["skipped"]} skipped\n\n')
+              f.write('Offline automated tests; live external API integration is not verified.\n')
               if not paths:
-                  f.write('\\n⚠️ No JUnit XML reports found.\\n')
+                  f.write('\n⚠️ No JUnit XML reports found.\n')
           print('JUnit results:', totals, 'passed:', passed)
           PY
 
