@@ -1,7 +1,9 @@
-name: Custom Image Workflows - Android Build
+name: Custom Image Workflows – Comprehensive Test Suite
 
 on:
   workflow_dispatch:
+
+run-name: 'Comprehensive Test Suite | Validation, Templates, Backend Integration, HTTP, Error Handling & Regression'
 
 permissions:
   contents: read
@@ -30,9 +32,38 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:compileDebugKotlin -x ':app:configureCMakeRelease[arm64-v8a]' --stacktrace
 
-      - name: Run workflow validation unit tests
+      - name: Run comprehensive offline unit tests
+        id: tests
+        continue-on-error: true
         run: |
           ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Publish actual JUnit test counts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, os, xml.etree.ElementTree as ET
+          paths = glob.glob('app/build/test-results/testDebugUnitTest/**/*.xml', recursive=True)
+          totals = dict(tests=0, failures=0, errors=0, skipped=0)
+          for path in paths:
+              root = ET.parse(path).getroot()
+              for key in totals:
+                  totals[key] += int(root.attrib.get(key, 0))
+          passed = totals['tests'] - totals['failures'] - totals['errors'] - totals['skipped']
+          summary = os.environ['GITHUB_STEP_SUMMARY']
+          with open(summary, 'a') as f:
+              f.write('# Custom Image Workflows – Comprehensive Test Suite\\n\\n')
+              f.write('**Validation · Templates · Backend Integration · HTTP · Error Handling · Regression**\\n\\n')
+              f.write(f'**{totals["tests"]} Tests** | {passed} passed | {totals["failures"]} failed | {totals["errors"]} errors | {totals["skipped"]} skipped\\n\\n')
+              f.write('Offline automated tests; live external API integration is not verified.\\n')
+              if not paths:
+                  f.write('\\n⚠️ No JUnit XML reports found.\\n')
+          print('JUnit results:', totals, 'passed:', passed)
+          PY
+
+      - name: Require passing unit tests
+        if: steps.tests.outcome != 'success'
+        run: exit 1
 
       - name: Build debug APK
         run: |
