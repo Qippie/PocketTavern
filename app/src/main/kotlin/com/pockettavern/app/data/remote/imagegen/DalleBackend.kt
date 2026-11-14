@@ -130,7 +130,9 @@ class DalleBackend private constructor(
 
             val responseBody = withContext(Dispatchers.IO) {
                 httpClient.newCall(request).execute().use { response ->
-                    response.body?.string() ?: throw Exception("Empty response")
+                    val text = response.body?.string() ?: throw Exception("Empty response")
+                    if (!response.isSuccessful) throw Exception("HTTP ${response.code}: $text")
+                    text
                 }
             }
 
