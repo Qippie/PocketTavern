@@ -1,9 +1,6 @@
 name: Custom Image Workflows - Android Build
 
 on:
-  push:
-    branches:
-      - feature/custom-image-workflows
   workflow_dispatch:
 
 permissions:
