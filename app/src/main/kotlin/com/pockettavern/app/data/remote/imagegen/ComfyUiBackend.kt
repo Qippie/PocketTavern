@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -233,7 +234,11 @@ class ComfyUiBackend private constructor(
 
                         if (filename != null) {
                             // Fetch the image
-                            val imgUrl = "$baseUrl/view?filename=$filename&subfolder=$subfolder&type=$imageType"
+                            val imgUrl = "$baseUrl/view".toHttpUrl().newBuilder()
+                                .addQueryParameter("filename", filename)
+                                .addQueryParameter("subfolder", subfolder)
+                                .addQueryParameter("type", imageType)
+                                .build()
                             val imgReq = Request.Builder().url(imgUrl).get().build()
                             val imageBytes = withContext(Dispatchers.IO) {
                                 httpClient.newCall(imgReq).execute().use { resp ->
