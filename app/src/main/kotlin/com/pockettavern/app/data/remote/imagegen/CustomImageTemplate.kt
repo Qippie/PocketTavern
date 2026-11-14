@@ -30,7 +30,7 @@ object CustomImageTemplate {
             ?.takeIf { it.isNotBlank() }
     }
 
-    private val placeholder = Regex("""\\{\\{(?:prompt|negative_prompt|sampler|model|source_image|seed|steps|cfg|width|height|denoise|clip_skip)\\}\\}""")
+    private val placeholder = Regex("""\{\{(?:prompt|negative_prompt|sampler|model|source_image|seed|steps|cfg|width|height|denoise|clip_skip)\}\}""")
 
     private fun values(params: ForgeGenerationParams, model: String): Map<String, String> = mapOf(
         "prompt" to params.prompt,
