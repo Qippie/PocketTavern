@@ -127,7 +127,7 @@ class NanoGptBackend private constructor(
             val model = config.nanoGptModel.ifBlank { "chroma" }
 
             DebugLogger.logKeyValue("model", model)
-            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val customTemplate = CustomImageTemplate.checkedSelected(config, params, type)
             val reqBody = if (customTemplate != null) {
                 CustomImageTemplate.renderJson(customTemplate, params, model)
             } else {
