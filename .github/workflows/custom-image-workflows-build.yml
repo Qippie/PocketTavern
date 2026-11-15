@@ -1,8 +1,6 @@
 name: Custom Image Workflows – Comprehensive Test Suite
 
 on:
-  push:
-    branches: [feature/custom-image-workflows]
   workflow_dispatch:
     inputs:
       test_focus:
@@ -77,12 +75,11 @@ jobs:
         run: exit 1
 
       - name: Build debug APK
-        if: github.event_name == 'workflow_dispatch'
         run: |
           ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload debug APK
-        if: github.event_name == 'workflow_dispatch' && success()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: PocketTavern-custom-image-workflows-debug
