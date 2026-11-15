@@ -274,6 +274,12 @@ class ChatViewModel @Inject constructor(
         extensionManager.jsHost.setStatusCallback = { message ->
             _uiState.update { it.copy(extensionStatusMessage = message.ifBlank { null }) }
         }
+        // Surface extension errors using the existing native ErrorDialog.
+        extensionManager.jsHost.showToastCallback = { type, message ->
+            if (type == "error" && message.isNotBlank()) {
+                _uiState.update { it.copy(error = message) }
+            }
+        }
         // Observe token counter enabled state
         _uiState.update { it.copy(showTokenCount = extensionManager.tokenCounter.enabled) }
         // Observe auto-continue settings

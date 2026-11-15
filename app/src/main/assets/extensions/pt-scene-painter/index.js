@@ -66,6 +66,12 @@
         return s.artStyleByChar[charName] || s.defaultArtStyle;
     }
 
+    function reportError(message) {
+        PT.log('[ScenePainter] ' + message);
+        PT.setStatus('');
+        if (PT.showError) PT.showError(message);
+    }
+
     // ── State ─────────────────────────────────────────────────────────────────
 
     var _isGenerating = false;
@@ -121,7 +127,7 @@
             }
         }
         if (!messageText) {
-            PT.log('[ScenePainter] No message text found for index ' + messageIndex);
+            reportError('Scene Painter could not find text in the selected message.');
             return;
         }
 
@@ -162,9 +168,8 @@
 
         PT.generateHidden(analysisPrompt).then(function (sdPrompt) {
             if (!sdPrompt || !sdPrompt.trim()) {
-                PT.log('[ScenePainter] Empty prompt from analysis');
-                PT.setStatus('');
                 _isGenerating = false;
+                reportError('Scene Painter could not compose an image prompt. Check your LLM connection and try again.');
                 return;
             }
 
@@ -235,8 +240,8 @@
             });
         }).catch(function(e) {
             PT.log('[ScenePainter] generateHidden error: ' + e);
-            PT.setStatus('');
             _isGenerating = false;
+            reportError('Scene Painter could not compose an image prompt. Check your LLM connection and try again.');
         });
     }
 

@@ -91,7 +91,7 @@ class SdWebuiBackend private constructor(
 
         try {
             val config = configProvider()
-            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val customTemplate = CustomImageTemplate.checkedSelected(config, params, type)
 
             val image = if (customTemplate != null) {
                 val baseUrl = config.sdWebuiUrl.trimEnd('/')

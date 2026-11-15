@@ -126,7 +126,7 @@ class StabilityBackend private constructor(
                 prompts.add(StabilityPrompt(text = params.negativePrompt, weight = -1f))
             }
 
-            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val customTemplate = CustomImageTemplate.checkedSelected(config, params, type)
             val body = if (customTemplate != null) {
                 CustomImageTemplate.renderJson(
                     customTemplate,

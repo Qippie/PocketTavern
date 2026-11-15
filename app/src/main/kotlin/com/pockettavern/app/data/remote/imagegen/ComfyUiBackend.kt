@@ -147,16 +147,11 @@ class ComfyUiBackend private constructor(
             val config = configProvider()
             val seed = if (params.seed == -1) (0..Int.MAX_VALUE).random().toLong() else params.seed.toLong()
 
-            val requestedMode = params.workflowModeOverride ?: config.workflowModeFor(type)
-            val requestedCustom = params.customWorkflowOverride
-                ?: config.customWorkflowFor(type)?.template.orEmpty()
+            val customWorkflow = CustomImageTemplate.checkedSelected(config, params, type)
 
-            val workflow = if (
-                requestedMode == "CUSTOM" &&
-                requestedCustom.isNotBlank()
-            ) {
+            val workflow = if (customWorkflow != null) {
                 applyPocketTavernInputsToCustomWorkflow(
-                    workflowJson = requestedCustom,
+                    workflowJson = customWorkflow,
                     prompt = params.prompt,
                     negativePrompt = params.negativePrompt,
                     width = params.width,

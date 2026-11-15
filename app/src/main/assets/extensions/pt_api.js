@@ -530,6 +530,17 @@
             }
         },
 
+        /**
+         * Show the native chat error dialog instead of leaving a status spinner
+         * visible after a failed extension operation.
+         * @param {string} message
+         */
+        showError: function (message) {
+            if (window.PtBridge && message) {
+                PtBridge.showToast('error', String(message));
+            }
+        },
+
         // ── Per-character extension state ────────────────────────────────────
 
         /**

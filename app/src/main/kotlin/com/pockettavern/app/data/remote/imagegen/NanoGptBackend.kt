@@ -127,9 +127,6 @@ class NanoGptBackend private constructor(
             val model = config.nanoGptModel.ifBlank { "chroma" }
 
             DebugLogger.logKeyValue("model", model)
-            DebugLogger.logKeyValue("apiKeyPrefix", config.nanoGptApiKey.take(12) + "...")
-            DebugLogger.logKeyValue("prompt", params.prompt.take(80))
-
             val customTemplate = CustomImageTemplate.selected(config, params, type)
             val reqBody = if (customTemplate != null) {
                 CustomImageTemplate.renderJson(customTemplate, params, model)
@@ -139,7 +136,6 @@ class NanoGptBackend private constructor(
                     NanoGptGenerateRequest(prompt = params.prompt, model = model)
                 )
             }
-            DebugLogger.logKeyValue("requestBody", reqBody)
 
             val request = Request.Builder()
                 .url("$BASE_URL/v1/images/generations")
@@ -152,8 +148,7 @@ class NanoGptBackend private constructor(
                 httpClient.newCall(request).execute().use { response ->
                     val text = response.body?.string() ?: throw Exception("Empty response")
                     DebugLogger.logKeyValue("responseCode", response.code)
-                    DebugLogger.logKeyValue("responseBody", text.take(300))
-                    if (!response.isSuccessful) throw Exception("HTTP ${response.code}: $text")
+                    if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
                     text
                 }
             }

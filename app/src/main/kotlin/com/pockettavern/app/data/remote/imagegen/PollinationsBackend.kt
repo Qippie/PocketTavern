@@ -78,7 +78,7 @@ class PollinationsBackend private constructor(
         try {
             val config = getConfig()
             val model = config.pollinationsModel.ifBlank { "flux" }
-            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val customTemplate = CustomImageTemplate.checkedSelected(config, params, type)
 
             val requestUrl = if (customTemplate != null) {
                 val rendered = CustomImageTemplate.renderUrl(customTemplate, params, model)

@@ -112,7 +112,7 @@ class HuggingFaceBackend private constructor(
             )
 
             val modelId = config.huggingfaceModel.ifBlank { "stabilityai/stable-diffusion-xl-base-1.0" }
-            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val customTemplate = CustomImageTemplate.checkedSelected(config, params, type)
             val body = if (customTemplate != null) {
                 CustomImageTemplate.renderJson(customTemplate, params, modelId)
             } else {

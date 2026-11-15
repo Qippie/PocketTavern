@@ -109,7 +109,7 @@ class DalleBackend private constructor(
             // DALL-E supports specific sizes
             val size = pickDalleSize(config.dalleModel, params.width, params.height)
 
-            val customTemplate = CustomImageTemplate.selected(config, params, type)
+            val customTemplate = CustomImageTemplate.checkedSelected(config, params, type)
             val body = if (customTemplate != null) {
                 CustomImageTemplate.renderJson(customTemplate, params, config.dalleModel)
             } else {

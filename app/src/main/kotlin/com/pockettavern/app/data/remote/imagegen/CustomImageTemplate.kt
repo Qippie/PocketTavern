@@ -30,6 +30,34 @@ object CustomImageTemplate {
             ?.takeIf { it.isNotBlank() }
     }
 
+    /**
+     * Strict preflight for generation. Unlike selected(), refuses to silently run
+     * Standard when Custom is requested without a valid backend-specific template.
+     */
+    fun checkedSelected(
+        config: ImageGenConfig,
+        params: ForgeGenerationParams,
+        backend: ImageGenBackendType
+    ): String? {
+        val mode = params.workflowModeOverride ?: config.workflowModeFor(backend)
+        if (mode != "STANDARD" && mode != "CUSTOM") {
+            throw IllegalArgumentException("Unknown image workflow mode: $mode")
+        }
+        if (mode == "STANDARD") return null
+        if (backend == ImageGenBackendType.LOCAL_SD_MNN) {
+            throw IllegalArgumentException("${backend.displayName} does not support custom templates.")
+        }
+        val template = selected(config, params, backend)
+            ?: throw IllegalArgumentException(
+                "Custom ${backend.templateLabel} selected for ${backend.displayName}, " +
+                    "but no template is configured. Import a ${backend.templateLabel} or select Standard."
+            )
+        WorkflowImportValidator.validate(template, backend)?.let { error ->
+            throw IllegalArgumentException(error)
+        }
+        return template
+    }
+
     private val placeholder = Regex("""\{\{(?:prompt|negative_prompt|sampler|model|source_image|seed|steps|cfg|width|height|denoise|clip_skip)\}\}""")
 
     private fun values(params: ForgeGenerationParams, model: String): Map<String, String> = mapOf(
