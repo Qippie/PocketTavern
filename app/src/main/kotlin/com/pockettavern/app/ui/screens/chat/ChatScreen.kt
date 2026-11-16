@@ -911,6 +911,8 @@ fun ChatScreen(
             globalFile = uiState.globalImageWorkflowFileName,
             supportsCustom = uiState.characterWorkflowSupportsCustom,
             error = uiState.characterImageWorkflowError,
+            success = uiState.characterImageWorkflowSuccess,
+            migrationNotice = uiState.characterImageWorkflowMigrationNotice,
             onModeChange = viewModel::setCharacterImageWorkflowMode,
             onImport = {
                 characterWorkflowPicker.launch(arrayOf(
@@ -1393,6 +1395,8 @@ private fun CharacterImageWorkflowDialog(
     globalFile: String?,
     supportsCustom: Boolean,
     error: String?,
+    success: String?,
+    migrationNotice: String?,
     onModeChange: (String) -> Unit,
     onImport: () -> Unit,
     onRemove: () -> Unit,
@@ -1417,6 +1421,26 @@ private fun CharacterImageWorkflowDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                val effective = com.pockettavern.app.domain.model.CharacterImageWorkflowPresentation.describe(
+                    backend = backend,
+                    characterMode = mode,
+                    globalMode = globalMode,
+                    characterTemplateName = characterFile,
+                    globalTemplateName = globalFile
+                )
+                Text(
+                    text = "Effective workflow: ${effective.summary}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (effective.hasMissingTemplate) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.primary
+                )
+                if (effective.hasMissingTemplate) {
+                    Text(
+                        text = "Choose Standard or import a compatible ${backend.templateLabel} to generate images.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
                 val options = listOf(
                     "GLOBAL" to "Use Global (currently ${if (globalMode == "CUSTOM") "Custom" else "Standard"})",
                     "STANDARD" to "Standard",
@@ -1462,6 +1486,20 @@ private fun CharacterImageWorkflowDialog(
                             Text("Remove character template")
                         }
                     }
+                }
+                if (success != null) {
+                    Text(
+                        text = success,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (migrationNotice != null) {
+                    Text(
+                        text = migrationNotice,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
                 if (error != null) {
                     Text(

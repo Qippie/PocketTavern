@@ -133,6 +133,8 @@ data class ChatUiState(
     val globalImageWorkflowFileName: String? = null,
     val characterWorkflowSupportsCustom: Boolean = false,
     val characterImageWorkflowError: String? = null,
+    val characterImageWorkflowSuccess: String? = null,
+    val characterImageWorkflowMigrationNotice: String? = null,
     // Message search
     val isSearching: Boolean = false,
     val searchQuery: String = "",
@@ -443,6 +445,28 @@ class ChatViewModel @Inject constructor(
                             characterAvatarUrl = avatarUri,
                             backgroundPath = bgPath
                         )
+                    }
+                    // Upgrade old Scene Painter preferences by filename, never by an
+                    // ambiguous display name. Migration cannot override new choices.
+                    val migrationNotice = try {
+                        val imageConfig = settingsDataStore.getImageGenConfig()
+                        val duplicates = characterDao.getAll().count { it.name == character.name }
+                        withContext(Dispatchers.IO) {
+                            characterImageWorkflowStorage.migrateLegacyScenePainter(
+                                characterFile = avatarUrl,
+                                displayName = character.name,
+                                backend = imageConfig.activeBackendType,
+                                matchingCharacterCount = duplicates,
+                                hasGlobalCustomTemplate = !imageConfig
+                                    .customWorkflowFor(imageConfig.activeBackendType)
+                                    ?.template.isNullOrBlank()
+                            )
+                        }
+                    } catch (e: Exception) {
+                        "Could not migrate older Scene Painter workflow settings: ${e.message}"
+                    }
+                    _uiState.update {
+                        it.copy(characterImageWorkflowMigrationNotice = migrationNotice)
                     }
                     // Update per-character extension filter
                     extensionManager.updateCharacterFilter(avatarUrl)
@@ -1720,18 +1744,37 @@ No preamble, no explanation. Just the numbered list."""
             try {
                 val config = settingsDataStore.getImageGenConfig()
                 val backend = config.activeBackendType
+                val displayName = _uiState.value.character?.name.orEmpty()
+                val matchingCount = characterDao.getAll().count { it.name == displayName }
+                val notice = withContext(Dispatchers.IO) {
+                    characterImageWorkflowStorage.migrateLegacyScenePainter(
+                        characterFile = characterFile,
+                        displayName = displayName,
+                        backend = backend,
+                        matchingCharacterCount = matchingCount,
+                        hasGlobalCustomTemplate = !config.customWorkflowFor(backend)
+                            ?.template.isNullOrBlank()
+                    )
+                }
                 val prefs = withContext(Dispatchers.IO) { characterImageWorkflowStorage.get(characterFile) }
                 _uiState.update {
                     it.copy(
                         showCharacterImageWorkflowDialog = true,
                         characterImageWorkflowBackend = backend,
                         characterImageWorkflowMode = prefs.modeFor(backend),
-                        characterImageWorkflowFileName = prefs.templateFor(backend)?.name,
+                        characterImageWorkflowFileName = prefs.templateFor(backend)
+                            ?.takeIf { entry -> entry.template.isNotBlank() }
+                            ?.name?.ifBlank { "Unnamed character template" },
                         globalImageWorkflowMode = config.workflowModeFor(backend),
-                        globalImageWorkflowFileName = config.customWorkflowFor(backend)?.name,
+                        globalImageWorkflowFileName = config.customWorkflowFor(backend)
+                            ?.takeIf { entry -> entry.template.isNotBlank() }
+                            ?.name?.ifBlank { "Unnamed global template" },
                         characterWorkflowSupportsCustom =
                             imageGenRepository.getBackend(backend)?.capabilities?.supportsCustomWorkflow == true,
-                        characterImageWorkflowError = null
+                        characterImageWorkflowError = null,
+                        characterImageWorkflowSuccess = null,
+                        characterImageWorkflowMigrationNotice = notice
+                            ?: it.characterImageWorkflowMigrationNotice
                     )
                 }
             } catch (e: Exception) {
@@ -1742,7 +1785,8 @@ No preamble, no explanation. Just the numbered list."""
 
     fun dismissCharacterImageWorkflowDialog() {
         _uiState.update {
-            it.copy(showCharacterImageWorkflowDialog = false, characterImageWorkflowError = null)
+            it.copy(showCharacterImageWorkflowDialog = false,
+                characterImageWorkflowError = null, characterImageWorkflowSuccess = null)
         }
     }
 
@@ -1752,7 +1796,8 @@ No preamble, no explanation. Just the numbered list."""
         if (mode !in setOf("GLOBAL", "STANDARD", "CUSTOM")) return
         if (mode == "CUSTOM" && !_uiState.value.characterWorkflowSupportsCustom) {
             _uiState.update {
-                it.copy(characterImageWorkflowError = "${backend.displayName} does not support custom templates.")
+                it.copy(characterImageWorkflowError = "${backend.displayName} does not support custom templates.",
+                    characterImageWorkflowSuccess = null)
             }
             return
         }
@@ -1760,10 +1805,12 @@ No preamble, no explanation. Just the numbered list."""
             try {
                 withContext(Dispatchers.IO) { characterImageWorkflowStorage.setMode(fileName, backend, mode) }
                 _uiState.update {
-                    it.copy(characterImageWorkflowMode = mode, characterImageWorkflowError = null)
+                    it.copy(characterImageWorkflowMode = mode, characterImageWorkflowError = null,
+                        characterImageWorkflowSuccess = null)
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(characterImageWorkflowError = "Could not save workflow mode: ${e.message}") }
+                _uiState.update { it.copy(characterImageWorkflowError = "Could not save workflow mode: ${e.message}",
+                    characterImageWorkflowSuccess = null) }
             }
         }
     }
@@ -1781,7 +1828,7 @@ No preamble, no explanation. Just the numbered list."""
                 }
                 val validationError = WorkflowImportValidator.validate(content, backend)
                 if (validationError != null) {
-                    _uiState.update { it.copy(characterImageWorkflowError = validationError) }
+                    _uiState.update { it.copy(characterImageWorkflowError = validationError, characterImageWorkflowSuccess = null) }
                     return@launch
                 }
                 val name = withContext(Dispatchers.IO) {
@@ -1798,11 +1845,18 @@ No preamble, no explanation. Just the numbered list."""
                     characterImageWorkflowStorage.setWorkflow(fileName, backend, name, content)
                 }
                 _uiState.update {
-                    it.copy(characterImageWorkflowFileName = name, characterImageWorkflowError = null)
+                    it.copy(
+                        characterImageWorkflowFileName = name,
+                        characterImageWorkflowError = null,
+                        characterImageWorkflowSuccess = if (it.characterImageWorkflowMode == "CUSTOM")
+                            "Imported \"$name\" successfully. This character will use it for ${backend.displayName}."
+                        else "Imported \"$name\" successfully. Select Custom to use it."
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(characterImageWorkflowError = "Could not import workflow: ${e.message}")
+                    it.copy(characterImageWorkflowError = "Could not import workflow: ${e.message}",
+                        characterImageWorkflowSuccess = null)
                 }
             }
         }
@@ -1815,11 +1869,13 @@ No preamble, no explanation. Just the numbered list."""
             try {
                 withContext(Dispatchers.IO) { characterImageWorkflowStorage.clearWorkflow(fileName, backend) }
                 _uiState.update {
-                    it.copy(characterImageWorkflowFileName = null, characterImageWorkflowError = null)
+                    it.copy(characterImageWorkflowFileName = null, characterImageWorkflowError = null,
+                        characterImageWorkflowSuccess = "Character template removed. Custom will use the global template if configured.")
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(characterImageWorkflowError = "Could not remove workflow: ${e.message}")
+                    it.copy(characterImageWorkflowError = "Could not remove workflow: ${e.message}",
+                        characterImageWorkflowSuccess = null)
                 }
             }
         }

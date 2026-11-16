@@ -9,7 +9,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class CharacterImageWorkflowSettings(
     val workflowModes: Map<String, String> = emptyMap(),
-    val customWorkflows: Map<String, CustomImageWorkflowDefinition> = emptyMap()
+    val customWorkflows: Map<String, CustomImageWorkflowDefinition> = emptyMap(),
+    /** Prevent old Scene Painter keys from overriding an explicit "Use Global" choice. */
+    val legacyMigrationChecked: Set<String> = emptySet()
 ) {
     fun modeFor(backend: ImageGenBackendType): String = workflowModes[backend.name] ?: "GLOBAL"
 
@@ -51,6 +53,40 @@ object CharacterImageWorkflowResolver {
                 )
             }
             else -> throw IllegalArgumentException("Unknown character image workflow mode: $mode")
+        }
+    }
+}
+
+/** A user-facing description of the *effective* workflow, not just the selected radio button. */
+data class CharacterImageWorkflowDisplay(
+    val summary: String,
+    val hasMissingTemplate: Boolean
+)
+
+object CharacterImageWorkflowPresentation {
+    fun describe(
+        backend: ImageGenBackendType,
+        characterMode: String,
+        globalMode: String,
+        characterTemplateName: String?,
+        globalTemplateName: String?
+    ): CharacterImageWorkflowDisplay {
+        val effectiveMode = if (characterMode == "GLOBAL") globalMode else characterMode
+        if (effectiveMode == "STANDARD") {
+            return CharacterImageWorkflowDisplay("Standard — built-in ${backend.templateLabel}", false)
+        }
+        if (effectiveMode != "CUSTOM") {
+            return CharacterImageWorkflowDisplay("Invalid workflow mode: $effectiveMode", true)
+        }
+        val ownTemplate = if (characterMode == "CUSTOM") characterTemplateName?.takeIf { it.isNotBlank() } else null
+        val globalTemplate = globalTemplateName?.takeIf { it.isNotBlank() }
+        return when {
+            ownTemplate != null ->
+                CharacterImageWorkflowDisplay("Custom — character ${backend.templateLabel}: $ownTemplate", false)
+            globalTemplate != null ->
+                CharacterImageWorkflowDisplay("Custom — global ${backend.templateLabel}: $globalTemplate", false)
+            else ->
+                CharacterImageWorkflowDisplay("Custom — no ${backend.templateLabel} configured", true)
         }
     }
 }

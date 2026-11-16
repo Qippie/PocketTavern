@@ -17,7 +17,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class CharacterImageWorkflowStorage @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val legacySettingsStorage: JsExtensionStorage
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
@@ -37,7 +38,7 @@ class CharacterImageWorkflowStorage @Inject constructor(
                 current.workflowModes - backend.name
             } else {
                 current.workflowModes + (backend.name to mode)
-            })
+            }, legacyMigrationChecked = current.legacyMigrationChecked + backend.name)
         }
     }
 
@@ -52,7 +53,8 @@ class CharacterImageWorkflowStorage @Inject constructor(
         require(template.isNotBlank()) { "Empty image workflow" }
         edit(characterFile) { current ->
             current.copy(customWorkflows = current.customWorkflows +
-                (backend.name to CustomImageWorkflowDefinition(name, template)))
+                (backend.name to CustomImageWorkflowDefinition(name, template)),
+                legacyMigrationChecked = current.legacyMigrationChecked + backend.name)
         }
     }
 
@@ -60,7 +62,61 @@ class CharacterImageWorkflowStorage @Inject constructor(
     fun clearWorkflow(characterFile: String, backend: ImageGenBackendType) {
         require(characterFile.isNotBlank()) { "Character identity is required" }
         edit(characterFile) { current ->
-            current.copy(customWorkflows = current.customWorkflows - backend.name)
+            current.copy(
+                customWorkflows = current.customWorkflows - backend.name,
+                legacyMigrationChecked = current.legacyMigrationChecked + backend.name
+            )
+        }
+    }
+
+
+    /**
+     * Non-destructive, per-backend migration from the old Scene Painter settings.
+     * Never assigns name-keyed data when multiple characters have that same name.
+     * Returns a short UI notice, or null when nothing needs attention.
+     */
+    @Synchronized
+    fun migrateLegacyScenePainter(
+        characterFile: String,
+        displayName: String,
+        backend: ImageGenBackendType,
+        matchingCharacterCount: Int,
+        hasGlobalCustomTemplate: Boolean
+    ): String? {
+        val current = readAll().characters[characterFile] ?: CharacterImageWorkflowSettings()
+        val decision = LegacyScenePainterWorkflowMigration.evaluate(
+            settingsJson = legacySettingsStorage.loadAllSettings(),
+            characterName = displayName,
+            matchingCharacterCount = matchingCharacterCount,
+            backend = backend,
+            current = current,
+            hasGlobalCustomTemplate = hasGlobalCustomTemplate
+        )
+        return when (decision) {
+            LegacyWorkflowMigrationDecision.None -> null
+            LegacyWorkflowMigrationDecision.AmbiguousName ->
+                "Older Scene Painter workflow settings could not be assigned automatically: " +
+                    "multiple characters share this name. Your existing settings were not changed."
+            LegacyWorkflowMigrationDecision.IncompatibleTemplate ->
+                "Older Scene Painter workflow settings were left unchanged: " +
+                    "the saved template does not match ${backend.displayName}."
+            LegacyWorkflowMigrationDecision.MissingCustomTemplate ->
+                "Older Scene Painter Custom settings were left unchanged: " +
+                    "no matching character template or global Custom template exists for ${backend.displayName}."
+            is LegacyWorkflowMigrationDecision.Apply -> {
+                edit(characterFile) { old ->
+                    old.copy(
+                        workflowModes = old.workflowModes + (backend.name to decision.mode),
+                        customWorkflows = if (decision.template == null) old.customWorkflows
+                            else old.customWorkflows + (backend.name to CustomImageWorkflowDefinition(
+                                "Migrated Scene Painter ${backend.templateLabel}", decision.template
+                            )),
+                        legacyMigrationChecked = old.legacyMigrationChecked + backend.name
+                    )
+                }
+                "Imported older Scene Painter ${decision.mode.lowercase().replaceFirstChar { it.uppercase() }} " +
+                    "settings for ${backend.displayName}."
+            }
         }
     }
 
@@ -71,7 +127,9 @@ class CharacterImageWorkflowStorage @Inject constructor(
         val previous = readAll().characters
         val updated = transform(previous[characterFile] ?: CharacterImageWorkflowSettings())
         val characters = previous.toMutableMap()
-        if (updated.workflowModes.isEmpty() && updated.customWorkflows.isEmpty()) {
+        if (updated.workflowModes.isEmpty() && updated.customWorkflows.isEmpty() &&
+            updated.legacyMigrationChecked.isEmpty()
+        ) {
             characters.remove(characterFile)
         } else {
             characters[characterFile] = updated
