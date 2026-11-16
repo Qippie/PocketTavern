@@ -4,6 +4,7 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import com.pockettavern.app.data.local.CharacterStorage
 import com.pockettavern.app.data.local.LoreBookStorage
 import com.pockettavern.app.data.local.SettingsDataStore
+import com.pockettavern.app.data.local.CharacterImageWorkflowStorage
 import com.pockettavern.app.data.remote.api.CharaVaultApi
 import com.pockettavern.app.data.remote.api.ForgeApi
 import com.pockettavern.app.data.remote.api.GitHubApi
@@ -138,8 +139,9 @@ object NetworkModule {
     @Singleton
     fun provideImageGenRepository(
         backends: Map<ImageGenBackendType, @JvmSuppressWildcards ImageGenBackend>,
-        settingsDataStore: SettingsDataStore
-    ): ImageGenRepository = ImageGenRepository(backends, settingsDataStore)
+        settingsDataStore: SettingsDataStore,
+        characterImageWorkflowStorage: CharacterImageWorkflowStorage
+    ): ImageGenRepository = ImageGenRepository(backends, settingsDataStore, characterImageWorkflowStorage)
 
     // ── CharaVault ────────────────────────────────────────────────────────────
 

@@ -49,6 +49,7 @@ import com.pockettavern.app.extensions.JsExtensionHost
 import com.pockettavern.app.ui.components.*
 import com.pockettavern.app.domain.model.QuickReplyButton
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import android.app.Activity
 import android.content.Intent
