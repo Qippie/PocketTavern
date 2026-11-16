@@ -218,6 +218,15 @@ class ImageGenSettingsViewModel @Inject constructor(
         }
     }
 
+    fun reportWorkflowImportReadError() {
+        lastAttemptedWorkflow = null
+        _uiState.update { state ->
+            state.copy(
+                workflowImportError = "Could not read the selected ${state.config.activeBackendType.templateLabel} file. Please choose another file."
+            )
+        }
+    }
+
     fun updateCustomWorkflow(template: String, fileName: String) {
         val backend = _uiState.value.config.activeBackendType
         lastAttemptedWorkflow = template

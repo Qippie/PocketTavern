@@ -1,6 +1,7 @@
 package com.pockettavern.app.ui.screens.settings
 
 import com.pockettavern.app.R
+import android.provider.OpenableColumns
 import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,15 +54,25 @@ fun ImageGenSettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            runCatching {
-                val workflowText = context.contentResolver.openInputStream(uri)
-                    ?.bufferedReader()
-                    ?.use { it.readText() }
-                    .orEmpty()
-                if (workflowText.isNotBlank()) {
-                    val name = uri.lastPathSegment?.substringAfterLast('/') ?: "workflow.json"
-                    viewModel.updateCustomWorkflow(workflowText, name)
+            WorkflowFileImport.read(
+                readContent = {
+                    context.contentResolver.openInputStream(uri)
+                        ?.bufferedReader()
+                        ?.use { it.readText() }
+                },
+                readDisplayName = {
+                    context.contentResolver.query(
+                        uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+                    )?.use { cursor ->
+                        val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
+                    }
                 }
+            ).onSuccess { selected ->
+                // Empty content is intentionally passed to the validator for a useful error.
+                viewModel.updateCustomWorkflow(selected.content, selected.name)
+            }.onFailure {
+                viewModel.reportWorkflowImportReadError()
             }
         }
     }
