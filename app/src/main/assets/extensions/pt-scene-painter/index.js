@@ -193,17 +193,6 @@
 
             var options = {};
 
-            var workflowMode = s.workflowByChar[charName] || 'GLOBAL';
-            if (workflowMode === 'STANDARD') {
-                options.workflowMode = 'STANDARD';
-            } else if (workflowMode === 'CUSTOM') {
-                options.workflowMode = 'CUSTOM';
-                var charWorkflow = s.customWorkflowByChar[charName] || '';
-                if (charWorkflow.trim()) {
-                    options.customWorkflow = charWorkflow;
-                }
-            }
-
             if (s.negativePrompt) {
                 options.negativePrompt = s.negativePrompt;
             }
@@ -292,16 +281,9 @@
         PT.getAvailableModels().then(function (models) {
             var modelOptions = ['-- keep current --'].concat(models || []);
             var presetOptions = [PRESET_NONE].concat(Object.keys(PRESETS));
-            var workflowOptions = ['-- keep global --', 'Standard', 'Custom'];
-            var workflowValue = '-- keep global --';
-            if (s.workflowByChar[charName] === 'STANDARD') workflowValue = 'Standard';
-            if (s.workflowByChar[charName] === 'CUSTOM') workflowValue = 'Custom';
-
             return PT.showEditDialog('Art Style — ' + charName, [
                 { key: 'preset',    label: 'Preset (overrides Style / Prefix / Negative)', type: 'select', options: presetOptions,  value: PRESET_NONE },
                 { key: 'model',     label: 'Model',                                        type: 'select', options: modelOptions,   value: modelOptions[0] },
-                { key: 'workflow',  label: 'Workflow',                                     type: 'select', options: workflowOptions, value: workflowValue },
-                { key: 'workflowJson', label: 'Custom Workflow (optional; blank = global custom)', type: 'file', value: s.customWorkflowByChar[charName] || '' },
                 { key: 'prefix',    label: 'Prompt Prefix (model tags)',                   value: s.promptPrefix || '' },
                 { key: 'style',     label: 'Art Style',                                    value: currentStyle },
                 { key: 'negative',  label: 'Negative Prompt',                              value: s.negativePrompt || '' },
@@ -320,21 +302,6 @@
                 if (result.prefix !== undefined)           s.promptPrefix             = result.prefix.trim();
                 if (result.style && result.style.trim())   s.artStyleByChar[charName] = result.style.trim();
                 if (result.negative !== undefined)         s.negativePrompt           = result.negative.trim();
-            }
-
-            var workflowSelection = result.workflow || '-- keep global --';
-            if (workflowSelection === 'Standard') {
-                s.workflowByChar[charName] = 'STANDARD';
-            } else if (workflowSelection === 'Custom') {
-                s.workflowByChar[charName] = 'CUSTOM';
-            } else {
-                delete s.workflowByChar[charName];
-            }
-
-            if (result.workflowJson !== undefined) {
-                var wf = String(result.workflowJson || '').trim();
-                if (wf) s.customWorkflowByChar[charName] = wf;
-                else delete s.customWorkflowByChar[charName];
             }
 
             var d = parseFloat(result.denoising);

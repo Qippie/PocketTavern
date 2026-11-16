@@ -16,7 +16,9 @@ data class ForgeGenerationParams(
     /** CLIP skip (SD WebUI: CLIP_stop_at_last_layers). 0/1 = server default. */
     val clipSkip: Int = 0,
     val workflowModeOverride: String? = null,
-    val customWorkflowOverride: String? = null
+    val customWorkflowOverride: String? = null,
+    /** Stable character PNG filename; null for image requests outside a character chat. */
+    val characterFileName: String? = null
 )
 
 data class ForgeProgress(

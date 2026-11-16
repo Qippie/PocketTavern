@@ -1,6 +1,7 @@
 package com.pockettavern.app.data.repository
 
 import com.pockettavern.app.data.local.SettingsDataStore
+import com.pockettavern.app.data.local.CharacterImageWorkflowStorage
 import com.pockettavern.app.data.remote.imagegen.ImageGenBackend
 import com.pockettavern.app.data.remote.imagegen.CustomImageTemplate
 import com.pockettavern.app.domain.model.*
@@ -13,7 +14,8 @@ import javax.inject.Singleton
 @Singleton
 class ImageGenRepository @Inject constructor(
     private val backends: Map<ImageGenBackendType, @JvmSuppressWildcards ImageGenBackend>,
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    private val characterImageWorkflowStorage: CharacterImageWorkflowStorage
 ) {
     suspend fun getActiveBackend(): ImageGenBackend? {
         val config = settingsDataStore.getImageGenConfig()
@@ -61,20 +63,37 @@ class ImageGenRepository @Inject constructor(
             return@flow
         }
 
-        val mode = params.workflowModeOverride ?: config.workflowModeFor(backend.type)
-        val source = if (params.workflowModeOverride != null || !params.customWorkflowOverride.isNullOrBlank())
-            "REQUEST_OVERRIDE" else "GLOBAL"
-        val templateName = if (mode != "CUSTOM") "built-in"
-            else if (!params.customWorkflowOverride.isNullOrBlank()) "request override"
-            else config.customWorkflowFor(backend.type)?.name.orEmpty().ifBlank { "unnamed" }
-                .replace(Regex("[\\r\\n\\t]"), "_").take(80)
+        val characterSettings = params.characterFileName?.takeIf { it.isNotBlank() }
+            ?.let { characterImageWorkflowStorage.get(it) }
+        val characterMode = characterSettings?.modeFor(backend.type) ?: "GLOBAL"
+        val effectiveParams = try {
+            CharacterImageWorkflowResolver.resolve(config, params, characterSettings)
+        } catch (e: IllegalArgumentException) {
+            emit(GenerationState.Error(e.message ?: "Invalid character image workflow mode"))
+            return@flow
+        }
+
+        val mode = effectiveParams.workflowModeOverride ?: config.workflowModeFor(backend.type)
+        val source = when {
+            characterMode != "GLOBAL" -> "CHARACTER"
+            effectiveParams.workflowModeOverride != null ||
+                !effectiveParams.customWorkflowOverride.isNullOrBlank() -> "REQUEST_OVERRIDE"
+            else -> "GLOBAL"
+        }
+        val templateName = (if (mode != "CUSTOM") "built-in"
+            else if (characterMode == "CUSTOM" &&
+                !characterSettings?.templateFor(backend.type)?.template.isNullOrBlank())
+                characterSettings?.templateFor(backend.type)?.name.orEmpty()
+            else if (!effectiveParams.customWorkflowOverride.isNullOrBlank()) "request override"
+            else config.customWorkflowFor(backend.type)?.name.orEmpty().ifBlank { "unnamed" })
+            .replace(Regex("[\\r\\n\\t]"), "_").take(80)
 
         DebugLogger.log("ImageGen: backend=${backend.type} mode=$mode source=$source template=$templateName")
 
         // Validate before contacting the provider; backend checks also protect direct calls.
         try {
             if (backend.capabilities.supportsCustomWorkflow) {
-                CustomImageTemplate.checkedSelected(config, params, backend.type)
+                CustomImageTemplate.checkedSelected(config, effectiveParams, backend.type)
             } else if (mode == "CUSTOM") {
                 throw IllegalArgumentException("${backend.type.displayName} does not support custom templates.")
             } else if (mode != "STANDARD") {
@@ -87,7 +106,7 @@ class ImageGenRepository @Inject constructor(
         }
 
         DebugLogger.log("ImageGen: dispatching to ${backend.type}")
-        backend.generate(params).collect { state ->
+        backend.generate(effectiveParams).collect { state ->
             when (state) {
                 is GenerationState.Complete -> DebugLogger.log("ImageGen: SUCCESS backend=${backend.type} mode=$mode")
                 is GenerationState.Error -> DebugLogger.log("ImageGen: FAILED backend=${backend.type} mode=$mode (details shown in UI)")

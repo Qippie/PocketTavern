@@ -105,6 +105,12 @@ fun ChatScreen(
         uri?.let { viewModel.uploadBackgroundFromUri(it) }
     }
 
+    val characterWorkflowPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.importCharacterImageWorkflow(it) }
+    }
+
     val exportChatLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/jsonl")
     ) { uri ->
@@ -881,6 +887,10 @@ fun ChatScreen(
                 isTtsEnabled = uiState.isTtsEnabled,
                 isTtsSpeaking = uiState.isTtsSpeaking,
                 extensionActions = uiState.messageActions,
+                onCharacterImageWorkflowSettings = {
+                    viewModel.dismissMessageActions()
+                    viewModel.openCharacterImageWorkflowDialog()
+                },
                 onExtensionAction = { action, label ->
                     viewModel.onHeaderActionClicked(action, label)
                     viewModel.dismissMessageActions()
@@ -888,6 +898,27 @@ fun ChatScreen(
                 onDismiss = { viewModel.dismissMessageActions() }
             )
         }
+    }
+
+    if (uiState.showCharacterImageWorkflowDialog) {
+        CharacterImageWorkflowDialog(
+            characterName = uiState.character?.name ?: "Character",
+            backend = uiState.characterImageWorkflowBackend,
+            mode = uiState.characterImageWorkflowMode,
+            globalMode = uiState.globalImageWorkflowMode,
+            characterFile = uiState.characterImageWorkflowFileName,
+            globalFile = uiState.globalImageWorkflowFileName,
+            supportsCustom = uiState.characterWorkflowSupportsCustom,
+            error = uiState.characterImageWorkflowError,
+            onModeChange = viewModel::setCharacterImageWorkflowMode,
+            onImport = {
+                characterWorkflowPicker.launch(arrayOf(
+                    "application/json", "text/plain", "application/octet-stream"
+                ))
+            },
+            onRemove = viewModel::removeCharacterImageWorkflow,
+            onDismiss = viewModel::dismissCharacterImageWorkflowDialog
+        )
     }
 
     // Message edit dialog
@@ -1140,6 +1171,7 @@ private fun MessageActionsDialog(
     isTtsEnabled: Boolean = false,
     isTtsSpeaking: Boolean = false,
     extensionActions: List<com.pockettavern.app.extensions.JsExtensionHost.HeaderAction> = emptyList(),
+    onCharacterImageWorkflowSettings: () -> Unit = {},
     onExtensionAction: (String, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit
 ) {
@@ -1148,6 +1180,8 @@ private fun MessageActionsDialog(
         title = { Text(if (isImageMessage) "Image Actions" else "Message Actions") },
         text = {
             Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (isImageMessage) {
@@ -1318,12 +1352,127 @@ private fun MessageActionsDialog(
                     }
                 }
                 } // end else (non-image messages)
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                )
+                TextButton(
+                    onClick = onCharacterImageWorkflowSettings,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Image generation settings...")
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.cancel))
             }
+        }
+    )
+}
+
+
+/**
+ * Native entry point from the long-pressed message's action dialog.
+ * The backend connection stays global; only the selected backend's workflow
+ * mode/template can be overridden for the current character file.
+ */
+@Composable
+private fun CharacterImageWorkflowDialog(
+    characterName: String,
+    backend: com.pockettavern.app.domain.model.ImageGenBackendType,
+    mode: String,
+    globalMode: String,
+    characterFile: String?,
+    globalFile: String?,
+    supportsCustom: Boolean,
+    error: String?,
+    onModeChange: (String) -> Unit,
+    onImport: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Image Generation — $characterName") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Backend: ${backend.displayName}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "The server and API credentials remain in Global Image Generation settings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val options = listOf(
+                    "GLOBAL" to "Use Global (currently ${if (globalMode == "CUSTOM") "Custom" else "Standard"})",
+                    "STANDARD" to "Standard",
+                    "CUSTOM" to "Custom"
+                )
+                options.forEach { (value, label) ->
+                    val available = value != "CUSTOM" || supportsCustom
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable(enabled = available) {
+                            onModeChange(value)
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = mode == value,
+                            onClick = { onModeChange(value) },
+                            enabled = available
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = label,
+                            color = if (available) MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (supportsCustom && (mode == "CUSTOM" || characterFile != null)) {
+                    HorizontalDivider()
+                    val chosenFile = characterFile?.takeIf { it.isNotBlank() }
+                    Text(
+                        text = if (chosenFile != null) "Character ${backend.templateLabel}: $chosenFile"
+                            else if (!globalFile.isNullOrBlank()) "Using global custom template: $globalFile"
+                            else "No custom template configured. Import one to generate images in Custom mode.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    TextButton(onClick = onImport) {
+                        Text(if (chosenFile == null) "Import ${backend.templateLabel}"
+                            else "Replace ${backend.templateLabel}")
+                    }
+                    if (chosenFile != null) {
+                        TextButton(onClick = onRemove) {
+                            Text("Remove character template")
+                        }
+                    }
+                }
+                if (error != null) {
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
         }
     )
 }
