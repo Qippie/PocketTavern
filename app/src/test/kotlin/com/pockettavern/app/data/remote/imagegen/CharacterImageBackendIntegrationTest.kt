@@ -18,7 +18,7 @@ class CharacterImageBackendIntegrationTest(private val backend: ImageGenBackendT
             .map { arrayOf<Any>(it) }
     }
 
-    private val config get() = integrationConfig(backend)
+    private val config get() = integrationConfig(backend).copy(activeBackend = backend.name)
     private val request = ForgeGenerationParams(prompt = "a dragon", seed = 41)
 
     @Test fun characterCustomWorkflowReachesProviderRequest() = runBlocking {
@@ -66,7 +66,7 @@ class CharacterImageStandardHttpIntegrationTest(private val backend: ImageGenBac
     }
 
     @Test fun characterStandardOverridesGlobalCustomInRealBackendRequest() = runBlocking {
-        val config = integrationConfig(backend)
+        val config = integrationConfig(backend).copy(activeBackend = backend.name)
         val settings = CharacterImageWorkflowSettings(
             workflowModes = mapOf(backend.name to "STANDARD")
         )
@@ -80,5 +80,36 @@ class CharacterImageStandardHttpIntegrationTest(private val backend: ImageGenBac
             server.requests.first().url.toString() else server.requests.first().jsonBodyText()
         assertFalse("Global custom workflow leaked into Standard for $backend: $sent",
             sent.contains("test-custom"))
+    }
+}
+
+/** A character's imported ComfyUI checkpoint must not be replaced by the global model. */
+class CharacterComfyUiCheckpointPreservationTest {
+    @Test fun ownComfyUiWorkflowKeepsItsCheckpoint() = runBlocking {
+        val backend = ImageGenBackendType.COMFYUI
+        val graph = """
+            {
+              "3":{"class_type":"KSampler","inputs":{"seed":3,"steps":15,
+                    "model":["4",0],"sampler_name":"euler","cfg":5.5}},
+              "4":{"class_type":"CheckpointLoaderSimple",
+                    "inputs":{"ckpt_name":"character-anime-model.safetensors"}}
+            }
+        """.trimIndent()
+        val config = integrationConfig(backend).copy(activeBackend = backend.name)
+        val prefs = CharacterImageWorkflowSettings(
+            workflowModes = mapOf(backend.name to "CUSTOM"),
+            customWorkflows = mapOf(backend.name to CustomImageWorkflowDefinition("anime.json", graph))
+        )
+        val params = CharacterImageWorkflowResolver.resolve(config,
+            ForgeGenerationParams(prompt = "portrait", seed = 3), prefs)
+        assertTrue(params.preserveCustomWorkflowModel)
+        val fake = FakeImageHttp(::simulatedImageSuccess)
+        val states = simulatedBackend(backend, fake.client, config).generate(params).toList()
+        assertTrue("Unexpected ComfyUI result: $states", states.last() is GenerationState.Complete)
+        val sent = fake.requests.first().jsonBodyText()
+        assertTrue("Character checkpoint was overwritten by global model: $sent",
+            sent.contains("character-anime-model.safetensors"))
+        assertFalse("Global checkpoint leaked into character-specific graph: $sent",
+            sent.contains("offline-model"))
     }
 }

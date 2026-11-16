@@ -160,7 +160,8 @@ class ComfyUiBackend private constructor(
                     cfgScale = params.cfgScale,
                     sampler = config.sampler,
                     seed = seed,
-                    modelName = config.sdModel
+                    // Own character graphs may intentionally use distinct checkpoints.
+                    modelName = if (params.preserveCustomWorkflowModel) "" else config.sdModel
                 )
             } else {
                 buildDefaultWorkflow(

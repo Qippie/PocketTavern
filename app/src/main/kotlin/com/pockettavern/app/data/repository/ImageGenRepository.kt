@@ -6,6 +6,8 @@ import com.pockettavern.app.data.remote.imagegen.ImageGenBackend
 import com.pockettavern.app.data.remote.imagegen.CustomImageTemplate
 import com.pockettavern.app.domain.model.*
 import com.pockettavern.app.util.DebugLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
@@ -63,8 +65,14 @@ class ImageGenRepository @Inject constructor(
             return@flow
         }
 
-        val characterSettings = params.characterFileName?.takeIf { it.isNotBlank() }
-            ?.let { characterImageWorkflowStorage.get(it) }
+        val characterSettings = try {
+            params.characterFileName?.takeIf { it.isNotBlank() }?.let { fileName ->
+                withContext(Dispatchers.IO) { characterImageWorkflowStorage.get(fileName) }
+            }
+        } catch (e: Exception) {
+            emit(GenerationState.Error("Could not load character image workflow settings: ${e.message}"))
+            return@flow
+        }
         val characterMode = characterSettings?.modeFor(backend.type) ?: "GLOBAL"
         val effectiveParams = try {
             CharacterImageWorkflowResolver.resolve(config, params, characterSettings)

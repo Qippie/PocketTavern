@@ -38,13 +38,18 @@ object CharacterImageWorkflowResolver {
         return when (mode) {
             "GLOBAL" -> request
             "STANDARD" -> request.copy(
-                workflowModeOverride = "STANDARD", customWorkflowOverride = null
+                workflowModeOverride = "STANDARD", customWorkflowOverride = null,
+                preserveCustomWorkflowModel = false
             )
-            "CUSTOM" -> request.copy(
-                workflowModeOverride = "CUSTOM",
-                customWorkflowOverride = character?.templateFor(config.activeBackendType)
+            "CUSTOM" -> {
+                val ownTemplate = character?.templateFor(config.activeBackendType)
                     ?.template?.takeIf { it.isNotBlank() }
-            )
+                request.copy(
+                    workflowModeOverride = "CUSTOM",
+                    customWorkflowOverride = ownTemplate,
+                    preserveCustomWorkflowModel = ownTemplate != null
+                )
+            }
             else -> throw IllegalArgumentException("Unknown character image workflow mode: $mode")
         }
     }

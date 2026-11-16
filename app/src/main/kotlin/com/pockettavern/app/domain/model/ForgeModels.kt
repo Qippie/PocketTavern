@@ -18,7 +18,9 @@ data class ForgeGenerationParams(
     val workflowModeOverride: String? = null,
     val customWorkflowOverride: String? = null,
     /** Stable character PNG filename; null for image requests outside a character chat. */
-    val characterFileName: String? = null
+    val characterFileName: String? = null,
+    /** A character-owned ComfyUI graph keeps the checkpoint specified in its own JSON. */
+    val preserveCustomWorkflowModel: Boolean = false
 )
 
 data class ForgeProgress(
