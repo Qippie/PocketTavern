@@ -37,6 +37,7 @@ import com.pockettavern.app.data.local.SettingsDataStore
 import com.pockettavern.app.data.local.CharacterImageWorkflowStorage
 import com.pockettavern.app.data.remote.imagegen.WorkflowImportValidator
 import com.pockettavern.app.domain.model.ImageGenBackendType
+import com.pockettavern.app.domain.model.ImageGenCapabilities
 import com.pockettavern.app.domain.prompt.PromptBuilder
 import com.pockettavern.app.domain.usecase.SummarizeHistoryUseCase
 import com.pockettavern.app.ui.audio.TtsManager
@@ -272,6 +273,13 @@ class ChatViewModel @Inject constructor(
         // Wire model set callback so PT.setCurrentModel() works
         extensionManager.jsHost.setCurrentModelCallback = { modelName, callbackId ->
             viewModelScope.launch { doExtensionSetModel(modelName, callbackId) }
+        }
+        // Always publish capabilities of the currently selected backend to JS.
+        // Collect config changes: users may switch backend while a chat is open.
+        viewModelScope.launch {
+            settingsDataStore.imageGenConfigFlow.collect { imageConfig ->
+                publishImageBackendCaps(imageConfig.activeBackendType)
+            }
         }
         // Wire hidden generate callback so PT.generateHidden() works
         extensionManager.jsHost.hiddenGenerateCallback = { prompt, callbackId ->
@@ -1530,6 +1538,7 @@ No preamble, no explanation. Just the numbered list."""
     private companion object {
         // Compact the accumulated memory block once it exceeds ~4000 chars (~1300 tokens)
         const val MEMORY_BLOCK_COMPACT_CHARS = 4_000
+        const val HIDDEN_GENERATE_MAX_TOKENS = 4_096
     }
 
     private fun triggerMemorySummarizationIfNeeded() {
@@ -1664,20 +1673,33 @@ No preamble, no explanation. Just the numbered list."""
             val messages = _uiState.value.messages
             val character = _uiState.value.character
             val contextPrompt = buildString {
+                // Scene Painter needs established facts, not just the most recent message.
+                // Respect the user's memory preference; this is the same context the
+                // official testing release includes for hidden image-prompt generation.
+                if (_currentWorldBook.isNotBlank()) {
+                    append("[Shared World Book]\n").append(_currentWorldBook).append("\n\n")
+                }
+                if (memoryEnabled && _currentMemoryBlock.isNotBlank()) {
+                    append("[Memory]\n").append(_currentMemoryBlock).append("\n\n")
+                }
                 if (character != null) {
                     append("Character: ").append(character.name).append("\n")
                     if (character.description.isNotBlank()) {
-                        append("Description: ").append(character.description.take(1000)).append("\n")
+                        append("Description: ").append(character.description).append("\n")
                     }
                     if (character.personality.isNotBlank()) {
-                        append("Personality: ").append(character.personality.take(500)).append("\n")
+                        append("Personality: ").append(character.personality).append("\n")
                     }
                     if (character.scenario.isNotBlank()) {
-                        append("Scenario: ").append(character.scenario.take(500)).append("\n")
+                        append("Scenario: ").append(character.scenario).append("\n")
                     }
                     append("\n")
                 }
-                // Include recent messages for context (up to 20, 2000 chars each)
+                if (_currentPersonaDescription.isNotBlank()) {
+                    append(_currentUserName).append(" (user): ")
+                        .append(_currentPersonaDescription).append("\n\n")
+                }
+                // Match upstream context window: the 20 latest chat messages.
                 val recent = if (messages.size > 20) messages.takeLast(20) else messages
                 if (recent.isNotEmpty()) {
                     append("Recent conversation:\n")
@@ -1721,7 +1743,9 @@ No preamble, no explanation. Just the numbered list."""
             }
 
             var resultText = ""
-            llmRepository.generate(finalPrompt, config, preset).collect { event ->
+            llmRepository.generate(
+                finalPrompt, config, preset, maxTokensOverride = HIDDEN_GENERATE_MAX_TOKENS
+            ).collect { event ->
                 when (event) {
                     is StreamEvent.Complete -> resultText = event.fullText
                     is StreamEvent.Error -> resultText = ""
@@ -1881,6 +1905,20 @@ No preamble, no explanation. Just the numbered list."""
         }
     }
 
+    /** Keep the Scene Painter JS capability flags consistent with global backend changes. */
+    private fun publishImageBackendCaps(backend: ImageGenBackendType) {
+        val caps = imageGenRepository.getBackend(backend)?.capabilities ?: ImageGenCapabilities()
+        val flags = org.json.JSONObject()
+            .put("supportsImg2Img", caps.supportsImg2Img)
+            .put("supportsNegativePrompt", caps.supportsNegativePrompt)
+            .put("supportsSeed", caps.supportsSeed)
+            .put("supportsSteps", caps.supportsSteps)
+            .put("supportsCfgScale", caps.supportsCfgScale)
+            .put("supportsResolutionPresets", caps.supportsResolutionPresets)
+            .toString()
+        extensionManager.jsHost.updateImageCaps(flags)
+    }
+
     // ── Image generation (JS extension) ──────────────────────────────────
 
     private suspend fun doExtensionImageGenerate(prompt: String, optionsJson: String, callbackId: String) {
@@ -1893,7 +1931,15 @@ No preamble, no explanation. Just the numbered list."""
             val height = options.optInt("height", imageGenConfig.height)
             val negativePrompt = options.optString("negativePrompt", imageGenConfig.negativePrompt)
             val seed = options.optInt("seed", imageGenConfig.seed)
-            val sourceImageBase64 = options.optString("sourceImageBase64").ifEmpty { null }
+            val requestedSource = options.optString("sourceImageBase64").ifEmpty { null }
+            val supportsImg2Img = imageGenRepository.getBackend(imageGenConfig.activeBackendType)
+                ?.capabilities?.supportsImg2Img == true
+            if (requestedSource != null && !supportsImg2Img) {
+                com.pockettavern.app.util.DebugLogger.log(
+                    "[ImageGen] Avatar reference not supported by ${imageGenConfig.activeBackend}; using text prompt"
+                )
+            }
+            val sourceImageBase64 = if (supportsImg2Img) requestedSource else null
             val denoisingStrength = options.optDouble("denoisingStrength", 0.55).toFloat()
             val workflowModeOverride = options.optString("workflowMode").ifEmpty { null }
             val customWorkflowOverride = options.optString("customWorkflow").ifEmpty { null }

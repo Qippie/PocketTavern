@@ -55,6 +55,11 @@ class JsExtensionHost @Inject constructor(
     // Context JSON updated before each generation by ExtensionManager.updateContext()
     @Volatile private var _contextJson: String = "{}"
 
+    // Active image backend capabilities for Scene Painter and other JS extensions.
+    @Volatile private var _imageCapsJson: String = "{}"
+
+    fun updateImageCaps(json: String) { _imageCapsJson = json }
+
     // Message headers: messageIndex → list of headers (multiple extensions can each set one)
     private val _messageHeaders = MutableStateFlow<Map<Int, List<MessageHeaderEntry>>>(emptyMap())
     val messageHeaders: StateFlow<Map<Int, List<MessageHeaderEntry>>> = _messageHeaders.asStateFlow()
@@ -1076,6 +1081,10 @@ class JsExtensionHost @Inject constructor(
                 ""
             }
         }
+
+        /** Active image backend flags exposed to the JS Scene Painter. */
+        @JavascriptInterface
+        fun getImageBackendCapabilities(): String = _imageCapsJson
 
         // ── Model list / selector ─────────────────────────────────────────────
 
