@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
@@ -78,6 +79,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -1182,11 +1185,14 @@ private fun MessageActionsDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (isImageMessage) "Image Actions" else "Message Actions") },
         text = {
-            Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+            val actionsScrollState = rememberScrollState()
+            Box(modifier = Modifier.fillMaxWidth()) {
+                // Let AlertDialog use the available screen height instead of artificially
+                // clipping the actions to 440dp. Keep scrolling on smaller displays.
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(actionsScrollState),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                 if (isImageMessage) {
                     // Save Image to gallery
                     TextButton(
@@ -1368,6 +1374,31 @@ private fun MessageActionsDialog(
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("Image generation settings...")
                     Spacer(modifier = Modifier.weight(1f))
+                }
+                }
+
+                // Visible only while more actions remain below the viewport.
+                // The fade and chevron make the otherwise hidden scrolling discoverable.
+                if (actionsScrollState.canScrollForward) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(36.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, MaterialTheme.colorScheme.surfaceContainerHigh)
+                                )
+                            ),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Scroll down for more actions",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
         },
